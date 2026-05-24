@@ -1,6 +1,9 @@
 # Flutter C端 (独立仓库)
 smartstay-flutter/
 
+# Brainstorm companion temp files
+.superpowers/
+
 # Node
 node_modules/
 dist/
@@ -14,7 +17,6 @@ __pycache__/
 
 # Environment
 .env
-backend/.env
 
 # IDE
 .idea/
