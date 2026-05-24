@@ -26,17 +26,22 @@ export default function DashboardPage() {
     { name: '自家App', value: 0 }, { name: '携程', value: 0 }, { name: '美团', value: 0 },
   ])
 
+  const [trend, setTrend] = useState<number[]>([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+
   useEffect(() => {
     apiClient.get('/api/admin/dashboard').then(({ data }) => setStats(data))
     apiClient.get('/api/admin/channel-stats').then(({ data }) => {
       if (data.channels && data.channels.length > 0) setChannels(data.channels)
+    })
+    apiClient.get('/api/admin/hourly-revenue').then(({ data }) => {
+      if (data.revenue_trend) setTrend(data.revenue_trend)
     })
   }, [])
 
   const barOption = {
     xAxis: { type: 'category', data: ['00', '02', '04', '06', '08', '10', '12', '14', '16', '18', '20', '22'] },
     yAxis: { type: 'value' },
-    series: [{ data: [0, 0, 0, 15, 42, 78, 115, 98, 72, 58, 35, 10], type: 'bar', itemStyle: { color: '#1677FF' }, barWidth: 12 }],
+    series: [{ data: trend, type: 'bar', itemStyle: { color: '#1677FF' }, barWidth: 12 }],
     grid: { top: 10, right: 10, bottom: 20, left: 40 },
   }
 

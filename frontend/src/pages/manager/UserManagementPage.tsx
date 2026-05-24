@@ -59,8 +59,8 @@ export default function UserManagementPage() {
       render: (v: boolean) => <Tag color={v ? 'orange' : 'green'}>{v ? '首次登录' : '正常'}</Tag> },
     { title: '操作', key: 'actions', width: 140, render: () => (
         <Space>
-          <Button type="link" size="small">编辑</Button>
-          <Button type="link" size="small" danger>禁用</Button>
+          <Button type="link" size="small" onClick={() => message.info('员工编辑功能开发中...')}>编辑</Button>
+          <Button type="link" size="small" danger onClick={() => message.info('账户禁用功能开发中...')}>禁用</Button>
         </Space>
       ),
     },

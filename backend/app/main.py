@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.database import init_db
 from app.core.seed import seed_default_users, seed_default_rooms
-from app.api import auth, rooms, orders, work_orders, admin
+from app.api import auth, rooms, orders, work_orders, admin, consumptions
 
 
 @asynccontextmanager
@@ -30,6 +30,7 @@ app.include_router(rooms.router)
 app.include_router(orders.router)
 app.include_router(work_orders.router)
 app.include_router(admin.router)
+app.include_router(consumptions.router)
 
 
 @app.get("/health")

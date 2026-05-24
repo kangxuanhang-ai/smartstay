@@ -327,6 +327,7 @@ async def seed_mock_data(
     result = await db.execute(select(Room).where(Room.status == "vacant").limit(5))
     vacant_rooms = result.scalars().all()
 
+    created_orders = []
     for i, room in enumerate(vacant_rooms):
         if i >= len(guests):
             break
@@ -337,19 +338,47 @@ async def seed_mock_data(
         )
         db.add(order)
         room.status = "occupied"
+        created_orders.append(order)
 
-    # 批量创建消费记录
-    items = [("小冰箱·可乐", "minibar", 800), ("小冰箱·矿泉水", "minibar", 300),
-             ("中餐厅·红烧肉套餐", "restaurant", 12800), ("洗衣服务", "laundry", 3500)]
+    await db.flush()
+
+    # 批量创建消费记录（精准关联活跃订单）
+    items = [("客房小冰箱·可乐", "minibar", 800), ("客房小冰箱·矿泉水", "minibar", 300),
+             ("中餐厅·红烧肉套餐", "restaurant", 12800), ("便携旅行洗护套装", "other", 3500)]
+
     for _ in range(20):
-        room = random.choice(vacant_rooms)
-        item = random.choice(items)
-        c = Consumption(
-            order_id=None, room_id=room.id, item_name=item[0],
-            category=item[1], amount=item[2], quantity=1,
-            created_by="front_desk",
-        )
-        db.add(c)
+        if created_orders:
+            target_order = random.choice(created_orders)
+            item = random.choice(items)
+            c = Consumption(
+                order_id=target_order.id, room_id=target_order.room_id,
+                item_name=item[0], category=item[1], amount=item[2],
+                quantity=1, created_by="front_desk", consumed_at=datetime.utcnow(),
+            )
+            db.add(c)
 
     await db.commit()
-    return {"message": f"已注入 {len(guests)} 个虚拟住客, {len(vacant_rooms)} 条订单, 20 条消费"}
+    return {"message": f"已注入 {len(guests)} 个虚拟住客, {len(created_orders)} 条订单, 20 条消费"}
+
+
+# ── 全天流水走势 ──
+@router.get("/hourly-revenue")
+async def get_hourly_revenue(
+    current_user: User = Depends(require_role("manager")),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Order).where(Order.status.in_(["checked_in", "checked_out", "completed"]))
+    )
+    orders = result.scalars().all()
+
+    hourly_trend = [0] * 12
+    today = datetime.utcnow().date()
+
+    for o in orders:
+        if o.check_in_time and o.check_in_time.date() == today:
+            hour = o.check_in_time.hour
+            idx = min(hour // 2, 11)
+            hourly_trend[idx] += o.total_amount // 100
+
+    return {"revenue_trend": hourly_trend}
