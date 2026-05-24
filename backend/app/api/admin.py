@@ -6,6 +6,7 @@ from sqlmodel import select, delete
 
 from app.core.database import get_db
 from app.core.deps import require_role
+from app.core.security import get_password_hash
 from app.models.user import User
 from app.models.invoice import InvoiceRecord
 from app.models.security_log import AISecurityLog
@@ -228,3 +229,127 @@ async def reset_data(
     await seed_default_users()
     await seed_default_rooms()
     return {"message": "数据已重置并重新种子"}
+
+
+# ── 渠道占比统计 ──
+@router.get("/channel-stats")
+async def get_channel_stats(
+    current_user: User = Depends(require_role("manager")),
+    db: AsyncSession = Depends(get_db),
+):
+    from sqlalchemy import func as sa_func
+    result = await db.execute(
+        select(Order.source, sa_func.count()).group_by(Order.source)
+    )
+    rows = result.all()
+    total = sum(r[1] for r in rows)
+    channels = [
+        {"name": "自家App", "value": 0},
+        {"name": "携程", "value": 0},
+        {"name": "美团", "value": 0},
+    ]
+    source_map = {"self_app": "自家App", "ctrip": "携程", "meituan": "美团"}
+    for source, count in rows:
+        name = source_map.get(source, source)
+        for c in channels:
+            if c["name"] == name:
+                c["value"] = count
+                break
+    return {"channels": channels, "total": total}
+
+
+# ── 发票标记已开具 ──
+@router.put("/invoices/{invoice_id}/mark-issued")
+async def mark_invoice_issued(
+    invoice_id: str,
+    current_user: User = Depends(require_role("manager")),
+    db: AsyncSession = Depends(get_db),
+):
+    from sqlalchemy import update as sa_update
+    await db.execute(
+        sa_update(InvoiceRecord).where(InvoiceRecord.id == uuid.UUID(invoice_id)).values(status="issued")
+    )
+    await db.commit()
+    return {"message": "发票已标记为已开具"}
+
+
+# ── 创建员工账号 ──
+@router.post("/users")
+async def create_user(
+    body: dict,
+    current_user: User = Depends(require_role("manager")),
+    db: AsyncSession = Depends(get_db),
+):
+    existing = await db.execute(select(User).where(User.id_card == body["id_card"]))
+    if existing.scalar_one_or_none():
+        from fastapi import HTTPException as E
+        raise E(status_code=409, detail="用户已存在")
+
+    user = User(
+        id_card=body["id_card"],
+        phone=body.get("phone", ""),
+        name=body["name"],
+        role=body.get("role", "front_desk"),
+        hashed_password=get_password_hash("123456"),
+        is_first_login=True,
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return {"message": "员工账号创建成功", "id": str(user.id)}
+
+
+# ── Mock数据批量注入 ──
+@router.post("/seed-mock")
+async def seed_mock_data(
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    import random
+
+    # 批量创建虚拟住客
+    guests = []
+    for i in range(10):
+        card = f"mock_guest_{i:04d}"
+        existing = await db.execute(select(User).where(User.id_card == card))
+        if existing.scalar_one_or_none():
+            continue
+        u = User(
+            id_card=card, phone=f"1380000{i:04d}", name=f"虚拟住客{i:02d}",
+            hashed_password=get_password_hash("123456"), is_first_login=True, role="guest",
+        )
+        db.add(u)
+        guests.append(u)
+
+    await db.flush()
+
+    # 拿空闲房间批量创建订单
+    result = await db.execute(select(Room).where(Room.status == "vacant").limit(5))
+    vacant_rooms = result.scalars().all()
+
+    for i, room in enumerate(vacant_rooms):
+        if i >= len(guests):
+            break
+        order = Order(
+            user_id=guests[i].id, room_id=room.id, status="checked_in",
+            source=random.choice(["self_app", "ctrip", "meituan"]),
+            total_amount=room.current_price, check_in_time=datetime.utcnow(),
+        )
+        db.add(order)
+        room.status = "occupied"
+
+    # 批量创建消费记录
+    items = [("小冰箱·可乐", "minibar", 800), ("小冰箱·矿泉水", "minibar", 300),
+             ("中餐厅·红烧肉套餐", "restaurant", 12800), ("洗衣服务", "laundry", 3500)]
+    for _ in range(20):
+        room = random.choice(vacant_rooms)
+        item = random.choice(items)
+        c = Consumption(
+            order_id=None, room_id=room.id, item_name=item[0],
+            category=item[1], amount=item[2], quantity=1,
+            created_by="front_desk",
+        )
+        db.add(c)
+
+    await db.commit()
+    return {"message": f"已注入 {len(guests)} 个虚拟住客, {len(vacant_rooms)} 条订单, 20 条消费"}

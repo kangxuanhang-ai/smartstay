@@ -113,6 +113,21 @@ async def get_bill(order_id: str, db: AsyncSession = Depends(get_db)):
     )
 
 
+@router.get("/room/{room_id}/active")
+async def get_active_order_by_room(
+    room_id: str,
+    current_user: User = Depends(require_role("front_desk")),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Order).where(Order.room_id == uuid.UUID(room_id), Order.status == "checked_in")
+    )
+    order = result.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active order for this room")
+    return {"id": str(order.id), "room_id": str(order.room_id), "user_id": str(order.user_id), "status": order.status, "source": order.source, "check_in_time": order.check_in_time.isoformat() if order.check_in_time else None}
+
+
 @router.put("/{order_id}/checkout")
 async def checkout(
     order_id: str,

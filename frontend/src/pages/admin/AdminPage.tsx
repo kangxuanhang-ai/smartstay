@@ -50,6 +50,16 @@ export default function AdminPage() {
     }
   }
 
+  const handleSeedMock = async () => {
+    try {
+      const { data } = await apiClient.post('/api/admin/seed-mock')
+      message.success(data.message || 'Mock数据已注入')
+      fetchLogs()
+    } catch {
+      message.error('注入失败')
+    }
+  }
+
   const logColumns = [
     { title: '时间', dataIndex: 'intercepted_at', key: 'time', width: 90, render: (v: string) => new Date(v).toLocaleTimeString('zh-CN') },
     { title: '用户角色', dataIndex: 'role', key: 'role', width: 80, render: (v: string) => <Tag>{v}</Tag> },
@@ -79,6 +89,11 @@ export default function AdminPage() {
       <Card title={`🛡️ 安全防御日志 (${logs.length})`} className="mb-4">
         <Table columns={logColumns} dataSource={logs} loading={loading} pagination={{ pageSize: 10 }} size="small" />
       </Card>
+
+      <Button block size="large" style={{ background: '#1677FF', color: '#fff', borderColor: '#1677FF', marginBottom: 12 }}
+        onClick={handleSeedMock}>
+        📦 批量注入 Mock 演示数据（10住客 + 5订单 + 20消费）
+      </Button>
 
       <Button danger block size="large" onClick={handleReset}>
         🔄 一键重置演示数据

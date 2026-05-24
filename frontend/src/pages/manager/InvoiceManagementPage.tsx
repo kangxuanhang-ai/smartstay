@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Table, Tag, Space, Button, Tabs } from 'antd'
+import { Table, Tag, Space, Button, Tabs, message } from 'antd'
 import apiClient from '../../api/client'
 
 interface InvoiceRow {
@@ -34,6 +34,16 @@ export default function InvoiceManagementPage() {
 
   useEffect(() => { fetchInvoices() }, [])
 
+  const handleMarkIssued = async (id: string) => {
+    try {
+      await apiClient.put(`/api/admin/invoices/${id}/mark-issued`)
+      message.success('已标记为已开具')
+      fetchInvoices()
+    } catch {
+      message.error('操作失败')
+    }
+  }
+
   const getRoomLabel = (orderId: string) => orderId.substring(0, 8) + '...'
 
   const columns = [
@@ -49,7 +59,7 @@ export default function InvoiceManagementPage() {
           <Button type="link" size="small">查看</Button>
           {record.status === 'issued'
             ? <Button type="link" size="small" style={{ color: '#52c41a' }}>导出PDF</Button>
-            : <Button type="link" size="small" style={{ color: '#faad14' }}>标记已开具</Button>
+            : <Button type="link" size="small" style={{ color: '#faad14' }} onClick={() => handleMarkIssued(record.id)}>标记已开具</Button>
           }
         </Space>
       ),

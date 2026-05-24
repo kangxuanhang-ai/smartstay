@@ -13,13 +13,24 @@ interface DashboardStats {
   today_orders: number
 }
 
+interface ChannelStat {
+  name: string
+  value: number
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({
     occupancy: 0, occupied: 0, total_rooms: 0, revpar: 0, revenue: 0, today_orders: 0,
   })
+  const [channels, setChannels] = useState<ChannelStat[]>([
+    { name: '自家App', value: 0 }, { name: '携程', value: 0 }, { name: '美团', value: 0 },
+  ])
 
   useEffect(() => {
     apiClient.get('/api/admin/dashboard').then(({ data }) => setStats(data))
+    apiClient.get('/api/admin/channel-stats').then(({ data }) => {
+      if (data.channels && data.channels.length > 0) setChannels(data.channels)
+    })
   }, [])
 
   const barOption = {
@@ -29,14 +40,14 @@ export default function DashboardPage() {
     grid: { top: 10, right: 10, bottom: 20, left: 40 },
   }
 
+  const channelColors: Record<string, string> = { '自家App': '#1677ff', '携程': '#22c55e', '美团': '#f59e0b' }
   const pieOption = {
     series: [{
       type: 'pie', radius: ['55%', '80%'],
-      data: [
-        { value: 50, name: '自家App', itemStyle: { color: '#1677FF' } },
-        { value: 30, name: '携程', itemStyle: { color: '#22c55e' } },
-        { value: 20, name: '美团', itemStyle: { color: '#f59e0b' } },
-      ],
+      data: channels.filter((c) => c.value > 0).map((c) => ({
+        value: c.value, name: c.name,
+        itemStyle: { color: channelColors[c.name] || '#e2e8f0' },
+      })),
       label: { show: true, formatter: '{b}\n{d}%' },
     }],
   }

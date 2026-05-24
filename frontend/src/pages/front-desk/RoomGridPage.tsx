@@ -52,6 +52,17 @@ export default function RoomGridPage() {
     }
   }
 
+  const handleCheckout = async (roomId: string) => {
+    try {
+      const { data } = await apiClient.get(`/api/orders/room/${roomId}/active`)
+      await apiClient.put(`/api/orders/${data.id}/checkout`)
+      message.success('退房成功')
+      setRefreshKey((k) => k + 1)
+    } catch {
+      message.error('退房失败')
+    }
+  }
+
   const stats = {
     vacant: rooms.filter((r) => r.status === 'vacant').length,
     occupied: rooms.filter((r) => r.status === 'occupied').length,
@@ -85,6 +96,9 @@ export default function RoomGridPage() {
               items: [
                 ...(room.status === 'vacant'
                   ? [{ key: 'checkin', label: '🚪 快捷开房', onClick: () => setCheckInRoom(room.id) }]
+                  : []),
+                ...(room.status === 'occupied'
+                  ? [{ key: 'checkout', label: '🏃 办理退房', onClick: () => handleCheckout(room.id) }]
                   : []),
                 { key: 'dirty', label: '🧹 设为脏房', onClick: () => handleStatusChange(room.id, 'dirty') },
                 { key: 'lock', label: '🔒 一键锁房/解锁', onClick: () => handleStatusChange(room.id, 'maintenance') },
