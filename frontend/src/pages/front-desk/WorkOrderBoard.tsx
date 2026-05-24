@@ -33,7 +33,7 @@ export default function WorkOrderBoard() {
   }
 
   const handleAssign = async (id: string) => {
-    if (!staff) { message.warning('请先输入指派人员'); return }
+    if (!staff) { message.warning('请先选择指派人员'); return }
     await apiClient.put(`/api/work-orders/${id}/assign`, { assigned_resource: staff })
     message.success('已指派')
     setStaff('')
@@ -46,14 +46,47 @@ export default function WorkOrderBoard() {
     fetchOrders()
   }
 
+  const OrderCard = ({ wo, showAccept }: { wo: WorkOrder; showAccept?: boolean }) => (
+    <Card size="small" className="!mb-4 !shadow-sm !border !border-slate-200 hover:!shadow-md !transition-shadow !duration-200">
+      <div className="!flex !items-center !justify-between !mb-3">
+        <strong className="!text-sm !text-slate-800 !truncate">
+          {wo.type === 'delivery' ? '📦' : '🔧'} {wo.content}
+        </strong>
+        <span className="!text-xs !text-slate-500 !shrink-0 !ml-2">
+          {new Date(wo.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+        </span>
+      </div>
+      {wo.assigned_resource && (
+        <div className="!text-xs !text-slate-600 !mb-3">
+          <span className="!text-slate-500">指派：</span>
+          <span className="!font-medium">{wo.assigned_resource}</span>
+        </div>
+      )}
+      {showAccept && (
+        <div className="!flex !flex-wrap !gap-2">
+          <Button size="small" type="primary" onClick={() => handleAccept(wo.id)}>接单</Button>
+          <Button size="small" onClick={() => handleAssign(wo.id)}>指派处理</Button>
+        </div>
+      )}
+      {!showAccept && wo.status === 'processing' && (
+        <Button size="small" type="primary" danger onClick={() => handleComplete(wo.id)}>确认完成</Button>
+      )}
+      {!showAccept && wo.status === 'completed' && (
+        <span className="!inline-flex !items-center !gap-1 !text-sm !font-semibold !text-green-600 !bg-green-50 !px-3 !py-1 !rounded-full">
+          ✅ 已完成
+        </span>
+      )}
+    </Card>
+  )
+
   return (
     <div>
-      <h2 className="text-lg font-semibold mb-4">📋 客服工单流看板</h2>
+      <h2 className="!text-xl !font-bold !text-slate-800 !mb-6">📋 客服工单流看板</h2>
 
-      <div className="mb-4 flex items-center gap-3">
-        <span className="text-sm text-gray-500">指派人员：</span>
+      <div className="!mb-6 !flex !flex-wrap !items-center !gap-3">
+        <span className="!text-sm !font-medium !text-slate-600">指派人员：</span>
         <Select
-          style={{ width: 200 }}
+          style={{ width: 220 }}
           placeholder="选择值班保洁/维修"
           value={staff || undefined}
           onChange={setStaff}
@@ -66,62 +99,32 @@ export default function WorkOrderBoard() {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        {/* Left: Pending */}
+      <div className="!grid !grid-cols-1 xl:!grid-cols-2 !gap-6">
         <div>
-          <div className="flex items-center gap-2 mb-3">
-            <ClockCircleOutlined className="text-yellow-500" />
-            <span className="font-semibold">待指派</span>
-            <Badge count={pendingOrders.length} color="#faad14" />
+          <div className="!flex !items-center !gap-2 !mb-4">
+            <ClockCircleOutlined className="!text-amber-500 !text-lg" />
+            <span className="!text-base !font-semibold !text-slate-800">待指派</span>
+            <Badge count={pendingOrders.length} color="#f59e0b" />
           </div>
-          {pendingOrders.map((wo: WorkOrder) => (
-            <Card key={wo.id} size="small" className="mb-3">
-              <div className="flex items-center justify-between mb-2">
-                <strong>
-                  {wo.type === 'delivery' ? '📦' : '🔧'} {wo.content}
-                </strong>
-                <span className="text-xs text-gray-400">
-                  {new Date(wo.created_at).toLocaleTimeString()}
-                </span>
-              </div>
-              <div className="flex gap-2">
-                <Button size="small" type="primary" onClick={() => handleAccept(wo.id)}>接单</Button>
-                <Button size="small" onClick={() => handleAssign(wo.id)}>直接指派</Button>
-              </div>
-            </Card>
-          ))}
-          {pendingOrders.length === 0 && <div className="text-gray-400 text-sm py-4 text-center">暂无待指派工单</div>}
+          {pendingOrders.map((wo) => <OrderCard key={wo.id} wo={wo} showAccept />)}
+          {pendingOrders.length === 0 && (
+            <div className="!text-slate-400 !text-sm !py-8 !text-center !bg-slate-50 !rounded-lg !border !border-dashed !border-slate-200">
+              暂无待指派工单
+            </div>
+          )}
         </div>
 
-        {/* Right: Active + Completed */}
         <div>
-          <div className="flex items-center gap-2 mb-3">
-            <CheckCircleOutlined className="text-green-500" />
-            <span className="font-semibold">处理中/已完成</span>
-            <Badge count={activeOrders.length} color="#1677ff" />
+          <div className="!flex !items-center !gap-2 !mb-4">
+            <CheckCircleOutlined className="!text-green-500 !text-lg" />
+            <span className="!text-base !font-semibold !text-slate-800">处理中 / 已完成</span>
+            <Badge count={activeOrders.length} color="#3b82f6" />
           </div>
-          {[...activeOrders, ...completedOrders].map((wo: WorkOrder) => (
-            <Card key={wo.id} size="small" className="mb-3">
-              <div className="flex items-center justify-between mb-2">
-                <strong>
-                  {wo.type === 'delivery' ? '📦' : '🔧'} {wo.content}
-                </strong>
-                <span className={`text-xs font-semibold ${wo.status === 'completed' ? 'text-green-500' : 'text-yellow-600'}`}>
-                  {wo.status === 'completed' ? '✅ 已完成' : '⏳ 处理中'}
-                </span>
-              </div>
-              {wo.assigned_resource && (
-                <div className="text-xs text-gray-500 mb-2">指派：{wo.assigned_resource}</div>
-              )}
-              {wo.status === 'processing' && (
-                <Button size="small" type="primary" danger onClick={() => handleComplete(wo.id)}>
-                  确认完成
-                </Button>
-              )}
-            </Card>
-          ))}
+          {[...activeOrders, ...completedOrders].map((wo) => <OrderCard key={wo.id} wo={wo} />)}
           {activeOrders.length === 0 && completedOrders.length === 0 && (
-            <div className="text-gray-400 text-sm py-4 text-center">暂无工单</div>
+            <div className="!text-slate-400 !text-sm !py-8 !text-center !bg-slate-50 !rounded-lg !border !border-dashed !border-slate-200">
+              暂无工单
+            </div>
           )}
         </div>
       </div>

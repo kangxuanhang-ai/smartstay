@@ -1,17 +1,25 @@
-import { Card, Statistic, Row, Col } from 'antd'
+import { Card, Statistic } from 'antd'
 import { ArrowUpOutlined } from '@ant-design/icons'
 import ReactECharts from 'echarts-for-react'
 import { useState, useEffect } from 'react'
 import apiClient from '../../api/client'
 
+interface DashboardStats {
+  occupancy: number
+  occupied: number
+  total_rooms: number
+  revpar: number
+  revenue: number
+  today_orders: number
+}
+
 export default function DashboardPage() {
-  const [stats, setStats] = useState({ occupancy: 80, revpar: 240, revenue: 12560 })
+  const [stats, setStats] = useState<DashboardStats>({
+    occupancy: 0, occupied: 0, total_rooms: 0, revpar: 0, revenue: 0, today_orders: 0,
+  })
 
   useEffect(() => {
-    apiClient.get('/api/rooms/').then(({ data }) => {
-      const occupied = data.filter((r: { status: string }) => r.status === 'occupied').length
-      setStats((s) => ({ ...s, occupancy: Math.round((occupied / data.length) * 100) }))
-    })
+    apiClient.get('/api/admin/dashboard').then(({ data }) => setStats(data))
   }, [])
 
   const barOption = {
@@ -26,47 +34,48 @@ export default function DashboardPage() {
       type: 'pie', radius: ['55%', '80%'],
       data: [
         { value: 50, name: '自家App', itemStyle: { color: '#1677FF' } },
-        { value: 30, name: '携程', itemStyle: { color: '#52C41A' } },
-        { value: 20, name: '美团', itemStyle: { color: '#FAAD14' } },
+        { value: 30, name: '携程', itemStyle: { color: '#22c55e' } },
+        { value: 20, name: '美团', itemStyle: { color: '#f59e0b' } },
       ],
       label: { show: true, formatter: '{b}\n{d}%' },
     }],
   }
 
+  const revenueInYuan = stats.revenue ? (stats.revenue / 100).toFixed(0) : '0'
+  const revparInYuan = stats.revpar ? (stats.revpar / 100).toFixed(0) : '0'
+
   return (
     <div>
-      <h2 className="text-lg font-semibold mb-4">📊 总店长决策大盘</h2>
+      <h2 className="!text-xl !font-bold !text-slate-800 !mb-6">📊 总店长决策大盘</h2>
 
-      <Row gutter={16} className="mb-4">
-        <Col span={8}>
-          <Card>
-            <Statistic title="实时入住率" value={stats.occupancy} suffix="%" valueStyle={{ color: '#1677FF', fontSize: 32 }} prefix={<ArrowUpOutlined />} />
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card>
-            <Statistic title="RevPAR" value={stats.revpar} prefix="¥" valueStyle={{ color: '#52C41A', fontSize: 32 }} />
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card>
-            <Statistic title="今日流水" value={stats.revenue} prefix="¥" valueStyle={{ color: '#FAAD14', fontSize: 32 }} />
-          </Card>
-        </Col>
-      </Row>
+      <div className="!grid !grid-cols-1 sm:!grid-cols-3 !gap-4 !mb-6">
+        <Card className="!shadow-sm !border !border-slate-200 hover:!shadow-md !transition-shadow">
+          <Statistic title={`入住率 (${stats.occupied}/${stats.total_rooms})`}
+            value={stats.occupancy} suffix="%"
+            valueStyle={{ color: '#1677ff', fontSize: 32 }} prefix={<ArrowUpOutlined />} />
+        </Card>
+        <Card className="!shadow-sm !border !border-slate-200 hover:!shadow-md !transition-shadow">
+          <Statistic title="RevPAR (每间可售房收入)" value={revparInYuan} prefix="¥"
+            valueStyle={{ color: '#22c55e', fontSize: 32 }} />
+        </Card>
+        <Card className="!shadow-sm !border !border-slate-200 hover:!shadow-md !transition-shadow">
+          <Statistic title="今日流水" value={revenueInYuan} prefix="¥"
+            valueStyle={{ color: '#f59e0b', fontSize: 32 }} />
+        </Card>
+      </div>
 
-      <Row gutter={16}>
-        <Col span={14}>
-          <Card title="📈 全天流水走势" className="mb-4">
-            <ReactECharts option={barOption} style={{ height: 260 }} />
-          </Card>
-        </Col>
-        <Col span={10}>
-          <Card title="🥧 订单渠道占比" className="mb-4">
-            <ReactECharts option={pieOption} style={{ height: 260 }} />
-          </Card>
-        </Col>
-      </Row>
+      <div className="!grid !grid-cols-1 xl:!grid-cols-2 !gap-6">
+        <Card title={<span className="!font-semibold !text-slate-800">📈 全天流水走势</span>}
+          className="!shadow-sm !border !border-slate-200"
+        >
+          <ReactECharts option={barOption} style={{ width: '100%' }} />
+        </Card>
+        <Card title={<span className="!font-semibold !text-slate-800">🥧 订单渠道占比</span>}
+          className="!shadow-sm !border !border-slate-200"
+        >
+          <ReactECharts option={pieOption} style={{ width: '100%' }} />
+        </Card>
+      </div>
     </div>
   )
 }

@@ -1,23 +1,17 @@
+import { useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { Layout, Menu, Button } from 'antd'
 import {
   HomeOutlined, UnorderedListOutlined, DashboardOutlined,
   RobotOutlined, BookOutlined,
   UserOutlined, ToolOutlined, FileTextOutlined,
-  LogoutOutlined,
+  LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '../stores/authStore'
 
 const { Sider, Content, Header } = Layout
 
-interface MenuItem {
-  key: string
-  icon: React.ReactNode
-  label: string
-  role: string
-}
-
-const allMenuItems: MenuItem[] = [
+const allMenuItems = [
   { key: '/front-desk/rooms', icon: <HomeOutlined />, label: '房态格子图', role: 'front_desk' },
   { key: '/front-desk/work-orders', icon: <UnorderedListOutlined />, label: '工单看板', role: 'front_desk' },
   { key: '/manager/dashboard', icon: <DashboardOutlined />, label: '运营大盘', role: 'manager' },
@@ -28,13 +22,8 @@ const allMenuItems: MenuItem[] = [
   { key: '/admin', icon: <ToolOutlined />, label: '管理沙盒', role: 'admin' },
 ]
 
-const roleLabels: Record<string, string> = {
-  front_desk: '前台',
-  manager: '店长',
-  admin: '管理',
-}
-
 export default function AppLayout() {
+  const [collapsed, setCollapsed] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
   const { user, logout } = useAuthStore()
@@ -45,16 +34,21 @@ export default function AppLayout() {
 
   const selectedKey = menuItems.find((item) => location.pathname.startsWith(item.key))?.key || ''
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
-  }
-
   return (
-    <Layout className="min-h-screen">
-      <Sider width={220} theme="dark" breakpoint="lg" collapsedWidth={60}>
-        <div className="flex items-center justify-center h-16 text-white text-lg font-bold bg-[#002140]">
-          智宿云 · {roleLabels[user?.role || '']}
+    <Layout className="!h-screen !overflow-hidden">
+      <Sider
+        trigger={null}
+        collapsible
+        collapsed={collapsed}
+        collapsedWidth={60}
+        theme="dark"
+        breakpoint="lg"
+        onBreakpoint={(broken) => setCollapsed(broken)}
+      >
+        <div className="!flex !items-center !justify-center !h-16 !bg-[#002040] !overflow-hidden !whitespace-nowrap">
+          <span className="!text-white !text-base !font-bold !tracking-wide">
+            {collapsed ? '🏨' : '智宿云'}
+          </span>
         </div>
         <Menu
           theme="dark"
@@ -64,25 +58,25 @@ export default function AppLayout() {
           onClick={({ key }) => navigate(key)}
         />
       </Sider>
-      <Layout>
-        <Header className="bg-white flex items-center justify-between px-5 border-b border-gray-100">
-          <span className="text-base font-semibold text-gray-900">
-            🏨 SmartStay 酒店管理系统
-          </span>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-500">👤 {user?.name}</span>
-            <Button
-              type="text"
-              icon={<LogoutOutlined />}
-              onClick={handleLogout}
-              className="text-gray-500 hover:text-red-500"
-            >
-              退出
+      <Layout className="!flex !flex-col !flex-1 !min-w-0">
+        <Header className="!flex !items-center !justify-between !bg-white !px-5 !border-b !border-slate-200" style={{ height: 56 }}>
+          <div className="!flex !items-center !gap-3">
+            <Button type="text" icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />} onClick={() => setCollapsed(!collapsed)} />
+            <span className="!text-base !font-semibold !text-slate-800 !hidden sm:!inline">
+              🏨 SmartStay 酒店管理系统
+            </span>
+          </div>
+          <div className="!flex !items-center !gap-3">
+            <span className="!text-sm !text-slate-600">👤 {user?.name}</span>
+            <Button type="text" icon={<LogoutOutlined />} onClick={() => { logout(); navigate('/login') }} className="!text-slate-600">
+              <span className="!hidden sm:!inline">退出</span>
             </Button>
           </div>
         </Header>
-        <Content className="m-4 p-6 bg-white rounded-lg min-h-[calc(100vh-4rem)] overflow-auto">
-          <Outlet />
+        <Content className="!p-6 !bg-slate-50 !overflow-auto !flex-1">
+          <div className="!bg-white !rounded-xl !shadow-sm !border !border-slate-200 !p-6 !min-h-full">
+            <Outlet />
+          </div>
         </Content>
       </Layout>
     </Layout>

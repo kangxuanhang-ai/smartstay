@@ -1,4 +1,6 @@
+import { ConfigProvider } from 'antd'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import theme from './theme'
 import LoginPage from './pages/login/LoginPage'
 import AuthGuard from './components/AuthGuard'
 import AppLayout from './components/AppLayout'
@@ -13,22 +15,24 @@ import AdminPage from './pages/admin/AdminPage'
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
-          <Route path="/front-desk/rooms" element={<RoomGridPage />} />
-          <Route path="/front-desk/work-orders" element={<WorkOrderBoard />} />
-          <Route path="/manager/dashboard" element={<DashboardPage />} />
-          <Route path="/manager/audit" element={<AIAuditPage />} />
-          <Route path="/manager/knowledge" element={<KnowledgeBasePage />} />
-          <Route path="/manager/users" element={<UserManagementPage />} />
-          <Route path="/manager/invoices" element={<InvoiceManagementPage />} />
-          <Route path="/admin" element={<AdminPage />} />
-        </Route>
-        <Route path="/" element={<Navigate to="/login" />} />
-        <Route path="*" element={<Navigate to="/login" />} />
-      </Routes>
-    </BrowserRouter>
+    <ConfigProvider theme={theme}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
+            <Route path="/front-desk/rooms" element={<RoomGridPage />} />
+            <Route path="/front-desk/work-orders" element={<WorkOrderBoard />} />
+            <Route path="/manager/dashboard" element={<DashboardPage />} />
+            <Route path="/manager/audit" element={<AIAuditPage />} />
+            <Route path="/manager/knowledge" element={<KnowledgeBasePage />} />
+            <Route path="/manager/users" element={<UserManagementPage />} />
+            <Route path="/manager/invoices" element={<InvoiceManagementPage />} />
+            <Route path="/admin" element={<AdminPage />} />
+          </Route>
+          <Route path="/" element={<Navigate to="/login" />} />
+          <Route path="*" element={<Navigate to="/login" />} />
+        </Routes>
+      </BrowserRouter>
+    </ConfigProvider>
   )
 }

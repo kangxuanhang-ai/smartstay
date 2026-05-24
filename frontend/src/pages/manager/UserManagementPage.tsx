@@ -1,28 +1,60 @@
+import { useEffect, useState } from 'react'
 import { Table, Button, Tag, Space, Tabs } from 'antd'
+import apiClient from '../../api/client'
 
-const columns = [
-  { title: '姓名', dataIndex: 'name', key: 'name' },
-  { title: '身份证号', dataIndex: 'id_card', key: 'id_card' },
-  { title: '手机号', dataIndex: 'phone', key: 'phone' },
-  { title: '角色', dataIndex: 'role', key: 'role', render: (r: string) => <Tag>{r}</Tag> },
-  { title: '状态', dataIndex: 'status', key: 'status', render: (s: string) => <Tag color={s === '正常' ? 'green' : 'red'}>{s}</Tag> },
-  {
-    title: '操作', key: 'actions', render: () => (
-      <Space>
-        <Button type="link" size="small">编辑</Button>
-        <Button type="link" size="small" danger>禁用</Button>
-      </Space>
-    ),
-  },
-]
-
-const staffData = [
-  { key: '1', name: '前台张', id_card: '100...002', phone: '138...002', role: 'front_desk', status: '✅ 正常' },
-  { key: '2', name: '总店长', id_card: '100...001', phone: '138...001', role: 'manager', status: '✅ 正常' },
-  { key: '3', name: '管理员', id_card: '100...003', phone: '138...003', role: 'admin', status: '✅ 正常' },
-]
+interface UserRow {
+  id: string
+  id_card: string
+  phone: string
+  name: string
+  role: string
+  is_first_login: boolean
+  created_at: string
+}
 
 export default function UserManagementPage() {
+  const [staffData, setStaffData] = useState<UserRow[]>([])
+  const [guestData, setGuestData] = useState<UserRow[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const fetchUsers = async () => {
+    setLoading(true)
+    try {
+      const [{ data: staff }, { data: guests }] = await Promise.all([
+        apiClient.get('/api/admin/users?role=front_desk'),
+        apiClient.get('/api/admin/users?role=guest'),
+      ])
+      // Also fetch manager and admin
+      const { data: mgr } = await apiClient.get('/api/admin/users?role=manager')
+      const { data: adm } = await apiClient.get('/api/admin/users?role=admin')
+      setStaffData([...staff, ...mgr, ...adm].map((u: UserRow, i: number) => ({ ...u, key: String(i) })))
+      setGuestData(guests.map((u: UserRow, i: number) => ({ ...u, key: String(i) })))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchUsers() }, [])
+
+  const columns = [
+    { title: '姓名', dataIndex: 'name', key: 'name' },
+    { title: '身份证号/用户名', dataIndex: 'id_card', key: 'id_card', width: 200 },
+    { title: '手机号', dataIndex: 'phone', key: 'phone', width: 140 },
+    { title: '角色', dataIndex: 'role', key: 'role', width: 100, render: (r: string) => <Tag>{r}</Tag> },
+    { title: '状态', dataIndex: 'is_first_login', key: 'status', width: 120,
+      render: (v: boolean) => <Tag color={v ? 'orange' : 'green'}>{v ? '首次登录' : '正常'}</Tag> },
+    {
+      title: '操作', key: 'actions', width: 140, render: () => (
+        <Space>
+          <Button type="link" size="small">编辑</Button>
+          <Button type="link" size="small" danger>禁用</Button>
+        </Space>
+      ),
+    },
+  ]
+
+  const guestColumns = columns.filter((c) => c.key !== 'actions')
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
@@ -31,8 +63,10 @@ export default function UserManagementPage() {
       </div>
       <Tabs
         items={[
-          { key: 'staff', label: '👨‍💼 员工 B端', children: <Table columns={columns} dataSource={staffData} pagination={false} /> },
-          { key: 'guest', label: '👤 住客 C端 (只读)', children: <div className="text-gray-400 text-sm py-4">住客数据由前台开房自动创建...</div> },
+          { key: 'staff', label: `👨‍💼 员工 B端 (${staffData.length})`,
+            children: <Table columns={columns} dataSource={staffData} loading={loading} pagination={false} /> },
+          { key: 'guest', label: `👤 住客 C端 (${guestData.length})`,
+            children: <Table columns={guestColumns} dataSource={guestData} loading={loading} pagination={false} /> },
         ]}
       />
     </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Card, Tag, Dropdown, message, Space } from 'antd'
+import { Card, Tag, Dropdown, message } from 'antd'
 import { HomeOutlined } from '@ant-design/icons'
 import apiClient from '../../api/client'
 import CheckInModal from './CheckInModal'
@@ -11,14 +11,13 @@ interface Room {
   status: string
   floor: number
   current_price: number
-  device_states: Record<string, unknown>
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  vacant: '#52c41a',
-  occupied: '#ff4d4f',
-  dirty: '#faad14',
-  maintenance: '#8c8c8c',
+  vacant: '#22c55e',
+  occupied: '#ef4444',
+  dirty: '#f59e0b',
+  maintenance: '#6b7280',
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -46,7 +45,7 @@ export default function RoomGridPage() {
   const handleStatusChange = async (roomId: string, status: string) => {
     try {
       await apiClient.put(`/api/rooms/${roomId}/status`, { status })
-      message.success(`房间状态已更新`)
+      message.success('房间状态已更新')
       setRefreshKey((k) => k + 1)
     } catch {
       message.error('操作失败')
@@ -62,19 +61,22 @@ export default function RoomGridPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold">📊 实时房态全景</h2>
-        <Space>
+      <div className="!flex !flex-wrap !justify-between !items-center !gap-3 !mb-6">
+        <h2 className="!text-xl !font-bold !text-slate-800">📊 实时房态全景</h2>
+        <div className="!flex !flex-wrap !gap-2">
           {Object.entries(stats).map(([key, value]) => (
-            <Card size="small" key={key} styles={{ body: { padding: '8px 16px' } }}>
-              <span className="text-lg font-bold" style={{ color: STATUS_COLORS[key] }}>{value}</span>
-              <span className="text-xs text-gray-400 ml-2">{STATUS_LABELS[key]}</span>
+            <Card size="small" key={key}
+              styles={{ body: { padding: '8px 16px' } }}
+              className="!shadow-sm !border !border-slate-200"
+            >
+              <span className="!text-lg !font-bold" style={{ color: STATUS_COLORS[key] }}>{value}</span>
+              <span className="!text-xs !text-slate-500 !ml-2">{STATUS_LABELS[key]}</span>
             </Card>
           ))}
-        </Space>
+        </div>
       </div>
 
-      <div className="grid grid-cols-5 gap-3">
+      <div className="!grid !grid-cols-1 sm:!grid-cols-2 md:!grid-cols-3 lg:!grid-cols-4 xl:!grid-cols-5 !gap-4">
         {rooms.map((room) => (
           <Dropdown
             key={room.id}
@@ -93,16 +95,17 @@ export default function RoomGridPage() {
             <Card
               size="small"
               hoverable
-              style={{ borderColor: STATUS_COLORS[room.status] || '#d9d9d9', borderWidth: 2 }}
-              styles={{ body: { padding: '12px', textAlign: 'center' } }}
+              className="!shadow-sm !border-2 !border-slate-200 hover:!shadow-md hover:!border-slate-300 !transition-all !duration-200"
+              style={{ borderColor: STATUS_COLORS[room.status] || '#d9d9d9' }}
+              styles={{ body: { padding: '16px 12px', textAlign: 'center' } }}
             >
-              <div className="flex items-center justify-center gap-1 mb-1">
-                <HomeOutlined style={{ color: STATUS_COLORS[room.status] }} />
-                <strong className="text-lg">{room.room_number}</strong>
+              <div className="!flex !items-center !justify-center !gap-1.5 !mb-2 !truncate">
+                <HomeOutlined style={{ color: STATUS_COLORS[room.status], fontSize: 16, flexShrink: 0 }} />
+                <strong className="!text-xl !font-bold !text-slate-800 !truncate">{room.room_number}</strong>
               </div>
-              <div className="text-xs text-gray-400 mb-1">{ROOM_TYPE_LABELS[room.room_type] || room.room_type}</div>
+              <div className="!text-xs !text-slate-500 !mb-2">{ROOM_TYPE_LABELS[room.room_type] || room.room_type}</div>
               <Tag color={STATUS_COLORS[room.status]}>{STATUS_LABELS[room.status]}</Tag>
-              <div className="text-base font-bold text-blue-500 mt-1">
+              <div className="!text-base !font-bold !text-blue-600 !mt-2">
                 ¥{Math.round(room.current_price / 100)}
               </div>
             </Card>
