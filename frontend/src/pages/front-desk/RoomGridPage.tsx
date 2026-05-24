@@ -21,10 +21,10 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  vacant: 'VACANT',
-  occupied: 'OCCUPIED',
-  dirty: 'DIRTY',
-  maintenance: 'MAINT',
+  vacant: '空房',
+  occupied: '有人住',
+  dirty: '脏房',
+  maintenance: '维修中',
 }
 
 const ROOM_TYPE_LABELS: Record<string, string> = {
