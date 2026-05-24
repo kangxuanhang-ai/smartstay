@@ -1,0 +1,28 @@
+import uuid
+from datetime import datetime, timezone
+from typing import Any, Optional
+from sqlmodel import Field, SQLModel, Column
+from pgvector.sqlalchemy import Vector
+
+
+class RAGDocument(SQLModel, table=True):
+    __tablename__ = "rag_documents"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    title: str = Field(max_length=200)
+    file_name: str = Field(max_length=200)
+    content: str
+    chunks: int = Field(default=0)
+    uploaded_by: uuid.UUID = Field(foreign_key="users.id")
+    uploaded_at: datetime = Field(default_factory=datetime.utcnow)
+    vectorized_at: Optional[datetime] = Field(default=None)
+
+
+class RAGEmbedding(SQLModel, table=True):
+    __tablename__ = "rag_embeddings"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    document_id: uuid.UUID = Field(foreign_key="rag_documents.id")
+    chunk_index: int
+    content: str
+    embedding: Any = Field(default=None, sa_column=Column(Vector(1536)))
