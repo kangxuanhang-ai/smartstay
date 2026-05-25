@@ -13,7 +13,7 @@ class RAGDocument(SQLModel, table=True):
     file_name: str = Field(max_length=200)
     content: str
     chunks: int = Field(default=0)
-    uploaded_by: uuid.UUID = Field(foreign_key="users.id")
+    uploaded_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
     uploaded_at: datetime = Field(default_factory=datetime.utcnow)
     vectorized_at: Optional[datetime] = Field(default=None)
 
