@@ -27,7 +27,9 @@ async def ai_chat(
 ):
     """SSE 流式对话接口"""
     result = await db.execute(
-        select(Order).where(Order.user_id == current_user.id, Order.status == "checked_in")
+        select(Order).where(
+            Order.user_id == current_user.id, Order.status == "checked_in"
+        ).order_by(Order.created_at.desc()).limit(1)
     )
     order = result.scalar_one_or_none()
     if not order:
