@@ -51,12 +51,16 @@ async def query_vector_store(query: str, top_k: int = 5) -> list[str]:
         if not rows:
             return []
 
-        # 基于关键词匹配度排序
+        # 字符级匹配（兼容中文无空格 + 英文有空格）
         query_lower = query.lower()
+        query_chars = set(query_lower.replace(" ", ""))
         scored = []
         for row in rows:
             content_lower = row.content.lower()
-            score = sum(1 for word in query_lower.split() if word in content_lower)
+            # 空格分词 + 单字 n-gram 双通路
+            word_score = sum(1 for word in query_lower.split() if word in content_lower)
+            char_score = sum(1 for char in query_chars if char in content_lower)
+            score = word_score + char_score
             if score > 0:
                 scored.append((score, row.content))
 
