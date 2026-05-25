@@ -28,7 +28,7 @@ export default function AdminPage() {
     }
   }
 
-  useEffect(() => { fetchLogs() }, [])
+  useEffect(() => { fetchLogs().catch(() => {}) }, [])
 
   const handleSimulate = async (type: string) => {
     try {

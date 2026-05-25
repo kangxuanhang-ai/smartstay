@@ -216,7 +216,6 @@ async def set_safety_threshold(
 ):
     """店长设置 AI 定价安全阈值"""
     threshold = body.get("threshold", 50)
-    # 写入 guard.py 的 PRICE_MAX_FACTOR（运行时变量）
     import app.ai.guard as guard
-    guard.PRICE_MAX_FACTOR = 1 + max(0, min(100, threshold)) / 100
-    return {"message": f"安全阈值已更新为 {threshold}%", "factor": guard.PRICE_MAX_FACTOR}
+    guard.PRICE_MAX_FACTOR = 1 + max(0, min(100, int(threshold))) / 100
+    return {"message": f"安全阈值已更新为 {threshold}%", "factor": guard.PRICE_MAX_FACTOR, "note": "重启服务器后需重新设置"}

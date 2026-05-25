@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 from langchain_core.tools import tool
@@ -62,6 +63,7 @@ def create_work_order_tool(type: str, content: str, room_id: str = "") -> str:
             result = await db.execute(
                 select(func.count()).where(
                     WorkOrder.type == type,
+                    WorkOrder.room_id == uuid.UUID(room_id) if room_id else True,
                     WorkOrder.status.in_(["submitted", "accepted", "processing"]),
                 )
             )

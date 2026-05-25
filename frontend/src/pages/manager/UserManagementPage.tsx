@@ -35,7 +35,7 @@ export default function UserManagementPage() {
     }
   }
 
-  useEffect(() => { fetchUsers() }, [])
+  useEffect(() => { fetchUsers().catch(() => {}) }, [])
 
   const handleCreateUser = async () => {
     const values = await form.validateFields()

@@ -32,7 +32,7 @@ export default function InvoiceManagementPage() {
     }
   }
 
-  useEffect(() => { fetchInvoices() }, [])
+  useEffect(() => { fetchInvoices().catch(() => {}) }, [])
 
   const handleMarkIssued = async (id: string) => {
     try {

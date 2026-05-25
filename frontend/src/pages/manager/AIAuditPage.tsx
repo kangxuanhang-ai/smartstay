@@ -27,7 +27,7 @@ export default function AIAuditPage() {
     apiClient.get('/api/admin/audit-reports')
       .then(({ data }) => {
         if (data.length > 0) setReport(data[0])
-      })
+      }).catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
