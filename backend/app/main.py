@@ -5,6 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import init_db
 from app.core.seed import seed_default_users, seed_default_rooms
 from app.api import auth, rooms, orders, work_orders, admin, consumptions
+from app.api.ai import router as ai_router
+from app.api.rag import router as rag_router
 
 
 @asynccontextmanager
@@ -31,6 +33,8 @@ app.include_router(orders.router)
 app.include_router(work_orders.router)
 app.include_router(admin.router)
 app.include_router(consumptions.router)
+app.include_router(ai_router)
+app.include_router(rag_router)
 
 
 @app.get("/health")
