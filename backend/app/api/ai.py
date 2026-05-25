@@ -6,6 +6,8 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
+from langchain_core.messages import HumanMessage
+
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
 from app.models.user import User
@@ -58,7 +60,7 @@ async def ai_chat(
 
     graph = build_graph()
     initial_state: AgentState = {
-        "messages": [{"role": "user", "content": user_input}],
+        "messages": [HumanMessage(content=user_input)],
         "user_id": str(current_user.id),
         "room_id": str(order.room_id) if room else None,
         "order_id": str(order.id),

@@ -12,6 +12,7 @@ llm = ChatDeepSeek(
     model="deepseek-chat",
     api_key=settings.DEEPSEEK_API_KEY,
     temperature=0.3,
+    streaming=True,
 )
 
 
@@ -74,7 +75,7 @@ async def action_node(state: AgentState):
             tool_args = call["args"]
 
             # 安全拦截
-            guard_result = execute_security_guard(tool_name, state["role"], tool_args, user_text)
+            guard_result = await execute_security_guard(tool_name, state["role"], tool_args, user_text)
             if not guard_result["ok"]:
                 cards.append({"type": "error", "title": guard_result["error"]})
                 continue
@@ -88,7 +89,7 @@ async def action_node(state: AgentState):
             # 执行工具
             for t in tools:
                 if t.name == tool_name:
-                    result = t.invoke(tool_args)
+                    result = await t.ainvoke(tool_args)
                     card_title = (
                         "🔧 空调调节中" if tool_name == "control_device_tool"
                         else "📦 物品配送工单已创建" if tool_name == "create_work_order_tool"
