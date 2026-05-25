@@ -1,5 +1,6 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -27,7 +28,10 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 @router.post("/login", response_model=TokenResponse)
 async def c_login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(User).where(User.id_card == req.id_card, User.role == "guest")
+        select(User).where(
+            or_(User.id_card == req.id_card, User.phone == req.id_card),
+            User.role == "guest",
+        )
     )
     user = result.scalar_one_or_none()
     if not user or not verify_password(req.password, user.hashed_password):
@@ -42,7 +46,7 @@ async def c_login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
 async def b_login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(User).where(
-            User.id_card == req.id_card,
+            or_(User.id_card == req.id_card, User.phone == req.id_card),
             User.role.in_(["front_desk", "manager", "admin"]),
         )
     )
