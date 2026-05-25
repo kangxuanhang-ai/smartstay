@@ -52,20 +52,6 @@ export default function WorkOrderBoard() {
     } catch { message.error('操作失败') }
   }
 
-  const handleAssign = async (id: string) => {
-    if (!staff) { message.warning('请先选择指派人员'); return }
-    await apiClient.put(`/api/work-orders/${id}/assign`, { assigned_resource: staff })
-    message.success('已指派')
-    setStaff('')
-    fetchOrders()
-  }
-
-  const handleComplete = async (id: string) => {
-    await apiClient.put(`/api/work-orders/${id}/complete`)
-    message.success('已核销完成')
-    fetchOrders()
-  }
-
   const OrderCard = ({ wo, showAccept }: { wo: WorkOrder; showAccept?: boolean }) => (
     <Card size="small" className="!mb-4 !shadow-sm !border !border-slate-200 hover:!shadow-md !transition-shadow !duration-200">
       <div className="!flex !items-center !justify-between !mb-3">
