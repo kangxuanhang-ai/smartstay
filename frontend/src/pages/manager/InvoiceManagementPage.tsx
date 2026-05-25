@@ -56,7 +56,7 @@ export default function InvoiceManagementPage() {
     {
       title: '操作', key: 'actions', width: 160, render: (_: unknown, record: InvoiceRow) => (
         <Space>
-          <Button type="link" size="small">查看</Button>
+          <Button type="link" size="small" onClick={() => message.info('查看详情功能开发中...')}>查看</Button>
           {record.status === 'issued'
             ? <Button type="link" size="small" style={{ color: '#52c41a' }} onClick={() => message.info('PDF 导出组件集成中...')}>导出PDF</Button>
             : <Button type="link" size="small" style={{ color: '#faad14' }} onClick={() => handleMarkIssued(record.id)}>标记已开具</Button>

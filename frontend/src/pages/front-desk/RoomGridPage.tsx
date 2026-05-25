@@ -39,7 +39,7 @@ export default function RoomGridPage() {
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
-    apiClient.get('/api/rooms/').then(({ data }) => setRooms(data))
+    apiClient.get('/api/rooms/').then(({ data }) => setRooms(data)).catch(() => message.error('加载房间数据失败'))
   }, [refreshKey])
 
   const handleStatusChange = async (roomId: string, status: string) => {

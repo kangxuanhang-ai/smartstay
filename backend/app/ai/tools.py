@@ -47,7 +47,7 @@ def control_device_tool(device: str, value: Any) -> str:
 
 # ── Tool 2: 创建工单 ──
 @tool
-def create_work_order_tool(type: str, content: str) -> str:
+def create_work_order_tool(type: str, content: str, room_id: str = "") -> str:
     """
     创建酒店服务工单（送物 delivery / 报修 repair）。
     调用前需先检查该房间未结工单是否达到上限。
@@ -70,7 +70,7 @@ def create_work_order_tool(type: str, content: str) -> str:
                 return f"安全熔断：该类型未结工单已达 {pending_count} 个上限，请稍后再试"
 
             wo = WorkOrder(
-                room_id=None,  # 由 action_node 注入真实 room_id
+                room_id=uuid.UUID(room_id) if room_id else None,  # 由 action_node 注入
                 type=type,
                 content=content,
                 status="submitted",

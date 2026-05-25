@@ -116,6 +116,18 @@ async def get_chat_history(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # 校验会话属于当前用户
+    result = await db.execute(
+        select(ChatSession).where(
+            ChatSession.id == uuid.UUID(session_id),
+            ChatSession.order_id.in_(
+                select(Order.id).where(Order.user_id == current_user.id)
+            ),
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="会话不属于当前用户")
+
     result = await db.execute(
         select(ChatMessage).where(ChatMessage.session_id == uuid.UUID(session_id)).order_by(ChatMessage.created_at)
     )

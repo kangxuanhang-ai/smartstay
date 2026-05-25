@@ -76,6 +76,10 @@ async def update_room_status(
     current_user: User = Depends(require_role("front_desk", "admin")),
     db: AsyncSession = Depends(get_db),
 ):
+    valid_statuses = {"vacant", "occupied", "dirty", "maintenance"}
+    if body.status not in valid_statuses:
+        from fastapi import HTTPException as E
+        raise E(status_code=400, detail=f"无效状态，仅支持: {valid_statuses}")
     await db.execute(
         update(Room).where(Room.id == uuid.UUID(room_id)).values(status=body.status)
     )

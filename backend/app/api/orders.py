@@ -82,7 +82,7 @@ async def get_current_order(
 
 
 @router.get("/{order_id}/bill", response_model=BillResponse)
-async def get_bill(order_id: str, db: AsyncSession = Depends(get_db)):
+async def get_bill(order_id: str, current_user: User = Depends(require_role("guest", "front_desk", "manager")), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Order).where(Order.id == uuid.UUID(order_id)))
     order = result.scalar_one_or_none()
     if not order:
@@ -164,6 +164,13 @@ async def submit_invoice(
     current_user: User = Depends(require_role("guest")),
     db: AsyncSession = Depends(get_db),
 ):
+    # 校验订单属于当前用户
+    result = await db.execute(
+        select(Order).where(Order.id == uuid.UUID(order_id), Order.user_id == current_user.id)
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="订单不属于当前用户")
+
     record = InvoiceRecord(
         order_id=uuid.UUID(order_id),
         company_name=req.company_name,

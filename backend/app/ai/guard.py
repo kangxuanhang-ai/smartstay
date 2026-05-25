@@ -20,13 +20,13 @@ def _run_async(coro):
         return asyncio.ensure_future(coro)
 
 
-def execute_security_guard(tool_name: str, user_role: str, params: dict, user_input: str = "") -> dict:
+async def execute_security_guard(tool_name: str, user_role: str, params: dict, user_input: str = "") -> dict:
     """安全拦截器：Tool 调用前校验。返回 {"ok": True} 或 {"ok": False, "error": "..."}"""
 
     # ① modify_room_price_tool — 仅 manager + 涨幅 ≤ 50%
     if tool_name == "modify_room_price_tool":
         if user_role != "manager":
-            _log_violation(
+            _log_violation_async(
                 user_role=user_role,
                 tool_name=tool_name,
                 tool_params=params,
@@ -37,9 +37,9 @@ def execute_security_guard(tool_name: str, user_role: str, params: dict, user_in
 
         room_type = params.get("room_type", "")
         new_price_yuan = params.get("new_price_yuan", 0)
-        base_price = _get_base_price(room_type)
+        base_price = await _get_base_price_async(room_type)
         if base_price > 0 and new_price_yuan > base_price * PRICE_MAX_FACTOR / 100:
-            _log_violation(
+            _log_violation_async(
                 user_role=user_role,
                 tool_name=tool_name,
                 tool_params=params,
@@ -54,7 +54,7 @@ def execute_security_guard(tool_name: str, user_role: str, params: dict, user_in
         if params.get("device") in ("ac_temp", "ac_temperature"):
             val = params.get("value", 24)
             if isinstance(val, (int, float)) and (val < 16 or val > 30):
-                _log_violation(
+                _log_violation_async(
                     user_role=user_role,
                     tool_name=tool_name,
                     tool_params=params,
@@ -65,9 +65,9 @@ def execute_security_guard(tool_name: str, user_role: str, params: dict, user_in
 
     # ③ create_work_order_tool — 单房间未结工单 ≤ 5
     if tool_name == "create_work_order_tool":
-        open_count = _count_open_orders_for_room(params.get("room_id"))
+        open_count = await _count_open_orders_async(params.get("room_id"))
         if open_count >= MAX_OPEN_WORK_ORDERS:
-            _log_violation(
+            _log_violation_async(
                 user_role=user_role,
                 tool_name=tool_name,
                 tool_params=params,

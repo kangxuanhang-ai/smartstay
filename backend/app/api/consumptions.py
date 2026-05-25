@@ -17,8 +17,11 @@ async def create_consumption(
     current_user: User = Depends(require_role("front_desk")),
     db: AsyncSession = Depends(get_db),
 ):
+    if not body.get("order_id") or not body.get("room_id") or not body.get("item_name") or not body.get("amount"):
+        from fastapi import HTTPException as E
+        raise E(status_code=400, detail="order_id、room_id、item_name、amount 为必填字段")
     c = Consumption(
-        order_id=uuid.UUID(body["order_id"]) if body.get("order_id") else None,
+        order_id=uuid.UUID(body["order_id"]),
         room_id=uuid.UUID(body["room_id"]),
         item_name=body["item_name"],
         category=body.get("category", "other"),

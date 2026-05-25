@@ -31,7 +31,7 @@ async def c_login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
         select(User).where(
             or_(User.id_card == req.id_card, User.phone == req.id_card),
             User.role == "guest",
-        )
+        ).limit(1)
     )
     user = result.scalar_one_or_none()
     if not user or not verify_password(req.password, user.hashed_password):
@@ -48,7 +48,7 @@ async def b_login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
         select(User).where(
             or_(User.id_card == req.id_card, User.phone == req.id_card),
             User.role.in_(["front_desk", "manager", "admin"]),
-        )
+        ).limit(1)
     )
     user = result.scalar_one_or_none()
     if not user or not verify_password(req.password, user.hashed_password):

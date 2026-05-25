@@ -20,7 +20,10 @@ async def upload_knowledge(
     if not file.filename or not file.filename.endswith(".md"):
         raise HTTPException(status_code=400, detail="仅支持 .md 格式的 Markdown 文件")
 
-    content = (await file.read()).decode("utf-8")
+    content_bytes = await file.read()
+    if len(content_bytes) > 5 * 1024 * 1024:  # 5MB limit
+        raise HTTPException(status_code=400, detail="文件过大，最大支持5MB")
+    content = content_bytes.decode("utf-8")
     if not content.strip():
         raise HTTPException(status_code=400, detail="文件内容为空")
 

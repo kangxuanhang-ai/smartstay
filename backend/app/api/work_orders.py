@@ -17,6 +17,7 @@ router = APIRouter(prefix="/api/work-orders", tags=["work-orders"])
 @router.post("/", response_model=WorkOrderResponse)
 async def create_work_order(
     req: WorkOrderCreate,
+    current_user: User = Depends(require_role("guest", "front_desk")),
     db: AsyncSession = Depends(get_db),
 ):
     wo = WorkOrder(

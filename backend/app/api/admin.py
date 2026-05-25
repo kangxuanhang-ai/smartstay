@@ -280,15 +280,20 @@ async def create_user(
     current_user: User = Depends(require_role("manager")),
     db: AsyncSession = Depends(get_db),
 ):
+    name = body.get("name", "")
+    id_card = body.get("id_card", "")
+    if not name or not id_card:
+        from fastapi import HTTPException as E
+        raise E(status_code=400, detail="姓名和用户名不能为空")
     existing = await db.execute(select(User).where(User.id_card == body["id_card"]))
     if existing.scalar_one_or_none():
         from fastapi import HTTPException as E
         raise E(status_code=409, detail="用户已存在")
 
     user = User(
-        id_card=body["id_card"],
+        id_card=id_card,
         phone=body.get("phone", ""),
-        name=body["name"],
+        name=name,
         role=body.get("role", "front_desk"),
         hashed_password=get_password_hash("123456"),
         is_first_login=True,

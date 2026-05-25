@@ -29,13 +29,13 @@ export default function DashboardPage() {
   const [trend, setTrend] = useState<number[]>([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
   useEffect(() => {
-    apiClient.get('/api/admin/dashboard').then(({ data }) => setStats(data))
+    apiClient.get('/api/admin/dashboard').then(({ data }) => setStats(data)).catch(() => {})
     apiClient.get('/api/admin/channel-stats').then(({ data }) => {
       if (data.channels && data.channels.length > 0) setChannels(data.channels)
-    })
+    }).catch(() => {})
     apiClient.get('/api/admin/hourly-revenue').then(({ data }) => {
       if (data.revenue_trend) setTrend(data.revenue_trend)
-    })
+    }).catch(() => {})
   }, [])
 
   const barOption = {
@@ -84,12 +84,12 @@ export default function DashboardPage() {
         <Card title={<span className="!font-semibold !text-slate-800">📈 全天流水走势</span>}
           className="!shadow-sm !border !border-slate-200"
         >
-          <ReactECharts option={barOption} style={{ width: '100%' }} />
+          <ReactECharts option={barOption} style={{ width: '100%', height: 260 }} />
         </Card>
         <Card title={<span className="!font-semibold !text-slate-800">🥧 订单渠道占比</span>}
           className="!shadow-sm !border !border-slate-200"
         >
-          <ReactECharts option={pieOption} style={{ width: '100%' }} />
+          <ReactECharts option={pieOption} style={{ width: '100%', height: 260 }} />
         </Card>
       </div>
     </div>

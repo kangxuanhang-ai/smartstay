@@ -14,6 +14,13 @@ async def test_get_all_work_orders(client, biz_token):
 
 @pytest.mark.asyncio
 async def test_create_work_order(client):
+    # First login as guest to get a token
+    resp0 = await client.post(
+        "/api/auth/login",
+        json={"id_card": "100000000000000101", "password": "123456"},
+    )
+    guest_token = resp0.json()["access_token"]
+
     resp = await client.post(
         "/api/work-orders/",
         json={
@@ -21,6 +28,7 @@ async def test_create_work_order(client):
             "type": "repair",
             "content": "马桶堵塞，需要维修",
         },
+        headers={"Authorization": f"Bearer {guest_token}"},
     )
     assert resp.status_code == 200
     data = resp.json()
