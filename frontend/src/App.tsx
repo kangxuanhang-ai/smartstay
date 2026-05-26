@@ -1,6 +1,7 @@
 import { ConfigProvider } from 'antd'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import theme from './theme'
+import ErrorBoundary from './components/ErrorBoundary'
 import LoginPage from './pages/login/LoginPage'
 import AuthGuard from './components/AuthGuard'
 import AppLayout from './components/AppLayout'
@@ -15,6 +16,7 @@ import AdminPage from './pages/admin/AdminPage'
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <ConfigProvider theme={theme}>
       <BrowserRouter>
         <Routes>
@@ -34,5 +36,6 @@ export default function App() {
         </Routes>
       </BrowserRouter>
     </ConfigProvider>
+    </ErrorBoundary>
   )
 }

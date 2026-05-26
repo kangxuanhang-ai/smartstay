@@ -1,7 +1,9 @@
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 from langchain_core.tools import tool
 from langchain_deepseek import ChatDeepSeek
+from sqlmodel import select, func, update
 
 from app.core.config import settings
 from app.core.database import async_session
@@ -34,72 +36,75 @@ async def classify_intent(user_input: str) -> str:
 
 # ── Tool 1: 控制设备 ──
 @tool
-def control_device_tool(device: str, value: Any) -> str:
+async def control_device_tool(device: str, value: Any, room_id: str = "") -> str:
     """
     控制客房设备（灯光、窗帘、空调）。
     device: living_light / bedroom_light / bedside_light / curtain / ac_temp / ac_mode
     value: 灯光用 bool，窗帘/温度用 int，ac_mode 用 str("cool"/"heat")
+    room_id: 由系统自动注入，勿手动填写
     """
     if device == "ac_temp" and isinstance(value, (int, float)):
         value = max(16, min(30, int(value)))
+    if not room_id:
+        return "错误：缺少 room_id，无法控制设备"
+    async with async_session() as db:
+        room = await db.get(Room, uuid.UUID(room_id))
+        if not room:
+            return f"错误：未找到房间 {room_id}"
+        states = room.device_states or {}
+        states[device] = value
+        await db.execute(
+            update(Room).where(Room.id == room.id).values(device_states=states)
+        )
+        await db.commit()
     return f"已执行设备控制：{device} → {value}"
 
 
 # ── Tool 2: 创建工单 ──
 @tool
-def create_work_order_tool(type: str, content: str, room_id: str = "") -> str:
+async def create_work_order_tool(type: str, content: str, room_id: str = "") -> str:
     """
     创建酒店服务工单（送物 delivery / 报修 repair）。
-    调用前需先检查该房间未结工单是否达到上限。
+    room_id: 由系统自动注入，勿手动填写
     """
-    import asyncio
-
-    async def _check_and_create() -> str:
-        async with async_session() as db:
-            from sqlmodel import select, func
-            from app.models.work_order import WorkOrder
-
-            result = await db.execute(
-                select(func.count()).where(
-                    WorkOrder.type == type,
-                    WorkOrder.status.in_(["submitted", "accepted", "processing"]),
-                )
+    if not room_id:
+        return "错误：缺少 room_id，无法创建工单"
+    async with async_session() as db:
+        result = await db.execute(
+            select(func.count()).where(
+                WorkOrder.room_id == uuid.UUID(room_id),
+                WorkOrder.status.in_(["submitted", "accepted", "processing"]),
             )
-            pending_count = result.scalar() or 0
-            if pending_count >= 5:
-                return f"安全熔断：该类型未结工单已达 {pending_count} 个上限，请稍后再试"
+        )
+        pending_count = result.scalar() or 0
+        if pending_count >= 5:
+            return f"安全熔断：该房间未结工单已达 {pending_count} 个上限，请稍后再试"
 
-            wo = WorkOrder(
-                room_id=uuid.UUID(room_id) if room_id else None,  # 由 action_node 注入
-                type=type,
-                content=content,
-                status="submitted",
-                ai_generated=True,
-                created_at=datetime.now(timezone.utc),
-            )
-            db.add(wo)
-            await db.commit()
-            return f"工单已创建：{type} — {content}"
-
-    return asyncio.run(_check_and_create())
+        wo = WorkOrder(
+            room_id=uuid.UUID(room_id),
+            type=type,
+            content=content,
+            status="submitted",
+            ai_generated=True,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(wo)
+        await db.commit()
+        return f"工单已创建：{type} — {content}"
 
 
 # ── Tool 3: 知识库检索 ──
 @tool
-def query_knowledge_tool(query: str) -> str:
+async def query_knowledge_tool(query: str) -> str:
     """
     检索酒店知识库（pgvector RAG），获取酒店服务、设施、政策等信息。
     """
-    import asyncio
     from app.ai.rag import query_vector_store
 
-    async def _search() -> str:
-        docs = await query_vector_store(query)
-        if not docs:
-            return "知识库中未找到相关信息"
-        return "\n—\n".join(docs)
-
-    return asyncio.run(_search())
+    docs = await query_vector_store(query)
+    if not docs:
+        return "知识库中未找到相关信息"
+    return "\n—\n".join(docs)
 
 
 # ── Tool 4: 修改房价（仅 manager） ──

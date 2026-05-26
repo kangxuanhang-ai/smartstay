@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { Layout, Menu, Button } from 'antd'
 import {
@@ -8,6 +8,8 @@ import {
   LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '../stores/authStore'
+import { useWebSocket } from '../hooks/useWebSocket'
+import AIPricingAlert from '../pages/front-desk/AIPricingAlert'
 
 const { Sider, Content, Header } = Layout
 
@@ -27,6 +29,24 @@ export default function AppLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, logout } = useAuthStore()
+  const ws = useWebSocket()
+
+  const [pricingOpen, setPricingOpen] = useState(false)
+  const [pricingData, setPricingData] = useState({ logId: '', originalPrice: 0, suggestedPrice: 0, reason: '' })
+
+  useEffect(() => {
+    if (!user || user.role === 'admin') return
+    const unsub = ws.on('ai_pricing.suggestion', (data) => {
+      setPricingData({
+        logId: data.log_id,
+        originalPrice: data.original,
+        suggestedPrice: data.suggested,
+        reason: data.reason,
+      })
+      setPricingOpen(true)
+    })
+    return unsub
+  }, [ws, user])
 
   const menuItems = allMenuItems
     .filter((item) => item.role === user?.role)
@@ -79,6 +99,15 @@ export default function AppLayout() {
           </div>
         </Content>
       </Layout>
+
+      <AIPricingAlert
+        open={pricingOpen}
+        logId={pricingData.logId}
+        originalPrice={pricingData.originalPrice}
+        suggestedPrice={pricingData.suggestedPrice}
+        reason={pricingData.reason}
+        onClose={() => setPricingOpen(false)}
+      />
     </Layout>
   )
 }

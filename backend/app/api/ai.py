@@ -17,13 +17,14 @@ from app.models.chat import ChatSession, ChatMessage
 from app.models.ai_log import AIPricingLog
 from app.ai.graph import build_graph
 from app.ai.state import AgentState
+from app.schemas.ai import ChatRequest, SafetyThresholdRequest
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
 
 @router.post("/chat")
 async def ai_chat(
-    body: dict,
+    req: ChatRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -40,7 +41,7 @@ async def ai_chat(
     result = await db.execute(select(Room).where(Room.id == order.room_id))
     room = result.scalar_one_or_none()
 
-    user_input = body.get("message", "")
+    user_input = req.message
 
     # 创建或复用 ChatSession
     result = await db.execute(
@@ -211,12 +212,11 @@ async def reject_pricing(
 
 @router.post("/safety-threshold")
 async def set_safety_threshold(
-    body: dict,
+    req: SafetyThresholdRequest,
     current_user: User = Depends(require_role("manager")),
 ):
     """店长设置 AI 定价安全阈值"""
-    threshold = body.get("threshold", 50)
-    # 写入 guard.py 的 PRICE_MAX_FACTOR（运行时变量）
+    threshold = req.threshold
     import app.ai.guard as guard
     guard.PRICE_MAX_FACTOR = 1 + max(0, min(100, threshold)) / 100
     return {"message": f"安全阈值已更新为 {threshold}%", "factor": guard.PRICE_MAX_FACTOR}
