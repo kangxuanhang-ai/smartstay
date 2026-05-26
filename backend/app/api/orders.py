@@ -13,6 +13,7 @@ from app.models.order import Order
 from app.models.consumption import Consumption
 from app.models.invoice import InvoiceRecord
 from app.schemas.order import CheckInRequest, BillResponse, InvoiceRequest, OrderResponse, BillingLine
+from app.ws.manager import manager
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
 
@@ -149,6 +150,12 @@ async def checkout(
             update(Room).where(Room.id == order.room_id).values(status="dirty")
         )
         await db.commit()
+
+        await manager.broadcast_biz({
+            "event": "room.status_change",
+            "data": {"room_id": str(order.room_id), "old_status": "occupied", "new_status": "dirty"},
+        })
+
         return {"message": "Checkout successful"}
     except HTTPException:
         raise

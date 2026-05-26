@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Card, Tag, Dropdown, message } from 'antd'
 import { HomeOutlined } from '@ant-design/icons'
 import apiClient from '../../api/client'
+import { useWebSocket } from '../../hooks/useWebSocket'
 import CheckInModal from './CheckInModal'
 
 interface Room {
@@ -37,10 +38,18 @@ export default function RoomGridPage() {
   const [rooms, setRooms] = useState<Room[]>([])
   const [checkInRoom, setCheckInRoom] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+  const ws = useWebSocket()
 
   useEffect(() => {
     apiClient.get('/api/rooms/').then(({ data }) => setRooms(data)).catch(() => message.error('加载房间数据失败'))
   }, [refreshKey])
+
+  useEffect(() => {
+    const unsub = ws.on('room.status_change', () => {
+      setRefreshKey((k) => k + 1)
+    })
+    return unsub
+  }, [ws])
 
   const handleStatusChange = async (roomId: string, status: string) => {
     try {

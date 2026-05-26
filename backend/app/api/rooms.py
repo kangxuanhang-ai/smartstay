@@ -9,6 +9,7 @@ from app.models.user import User
 from app.models.room import Room
 from app.models.order import Order
 from app.schemas.room import RoomResponse, DeviceControl, RoomStatusUpdate
+from app.ws.manager import manager
 
 router = APIRouter(prefix="/api/rooms", tags=["rooms"])
 
@@ -80,8 +81,18 @@ async def update_room_status(
     if body.status not in valid_statuses:
         from fastapi import HTTPException as E
         raise E(status_code=400, detail=f"无效状态，仅支持: {valid_statuses}")
+
+    result = await db.execute(select(Room.status).where(Room.id == uuid.UUID(room_id)))
+    old_status = result.scalar_one_or_none()
+
     await db.execute(
         update(Room).where(Room.id == uuid.UUID(room_id)).values(status=body.status)
     )
     await db.commit()
+
+    await manager.broadcast_biz({
+        "event": "room.status_change",
+        "data": {"room_id": room_id, "old_status": old_status, "new_status": body.status},
+    })
+
     return {"message": f"Room {room_id} status changed to {body.status}"}

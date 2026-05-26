@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select, delete
+from sqlmodel import select, delete, update
 
 from app.core.database import get_db
 from app.core.deps import require_role
@@ -17,6 +17,8 @@ from app.models.work_order import WorkOrder
 from app.models.consumption import Consumption
 from app.models.chat import ChatSession, ChatMessage
 from app.models.rag import RAGDocument, RAGEmbedding
+from app.ws.manager import manager
+from app.schemas.admin import UserCreate
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -56,13 +58,16 @@ async def get_dashboard(
 @router.get("/users")
 async def list_users(
     role: str | None = Query(None),
+    page: int = 1,
+    page_size: int = 50,
     current_user: User = Depends(require_role("manager", "admin")),
     db: AsyncSession = Depends(get_db),
 ):
+    offset = (page - 1) * page_size
     if role:
-        result = await db.execute(select(User).where(User.role == role).order_by(User.created_at.desc()))
+        result = await db.execute(select(User).where(User.role == role).order_by(User.created_at.desc()).offset(offset).limit(page_size))
     else:
-        result = await db.execute(select(User).order_by(User.created_at.desc()))
+        result = await db.execute(select(User).order_by(User.created_at.desc()).offset(offset).limit(page_size))
     users = result.scalars().all()
     return [
         {
@@ -103,10 +108,15 @@ async def list_invoices(
 # ── 安全日志列表 ──
 @router.get("/safety-logs")
 async def list_safety_logs(
+    page: int = 1,
+    page_size: int = 50,
     current_user: User = Depends(require_role("admin")),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(AISecurityLog).order_by(AISecurityLog.intercepted_at.desc()).limit(50))
+    offset = (page - 1) * page_size
+    result = await db.execute(
+        select(AISecurityLog).order_by(AISecurityLog.intercepted_at.desc()).offset(offset).limit(page_size)
+    )
     logs = result.scalars().all()
     return [
         {
@@ -166,7 +176,15 @@ async def simulate_door_open(
     if order.status == "paid":
         order.status = "checked_in"
         order.check_in_time = datetime.utcnow()
+        await db.execute(
+            update(Room).where(Room.id == order.room_id).values(status="occupied")
+        )
         await db.commit()
+
+        await manager.broadcast_biz({
+            "event": "room.status_change",
+            "data": {"room_id": str(order.room_id), "old_status": "vacant", "new_status": "occupied"},
+        })
 
     return {"message": f"模拟成功：订单 {order.id} 已推进至 CHECKED_IN"}
 
@@ -189,6 +207,18 @@ async def simulate_event(
     )
     db.add(log)
     await db.commit()
+
+    await manager.broadcast_biz({
+        "event": "ai_pricing.suggestion",
+        "data": {
+            "log_id": str(log.id),
+            "room_type": log.room_type,
+            "original": log.original_price,
+            "suggested": log.suggested_price,
+            "reason": log.trigger_reason,
+        },
+    })
+
     return {"message": "模拟成功：定价建议已生成，请切换到前台查看弹窗", "log_id": str(log.id)}
 
 
@@ -276,25 +306,23 @@ async def mark_invoice_issued(
 # ── 创建员工账号 ──
 @router.post("/users")
 async def create_user(
-    body: dict,
+    req: UserCreate,
     current_user: User = Depends(require_role("manager")),
     db: AsyncSession = Depends(get_db),
 ):
-    name = body.get("name", "")
-    id_card = body.get("id_card", "")
-    if not name or not id_card:
+    if not req.name or not req.id_card:
         from fastapi import HTTPException as E
         raise E(status_code=400, detail="姓名和用户名不能为空")
-    existing = await db.execute(select(User).where(User.id_card == body["id_card"]))
+    existing = await db.execute(select(User).where(User.id_card == req.id_card))
     if existing.scalar_one_or_none():
         from fastapi import HTTPException as E
         raise E(status_code=409, detail="用户已存在")
 
     user = User(
-        id_card=id_card,
-        phone=body.get("phone", ""),
-        name=name,
-        role=body.get("role", "front_desk"),
+        id_card=req.id_card,
+        phone=req.phone,
+        name=req.name,
+        role=req.role,
         hashed_password=get_password_hash("123456"),
         is_first_login=True,
     )

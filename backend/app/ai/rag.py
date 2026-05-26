@@ -3,15 +3,44 @@ from datetime import datetime
 from typing import Optional
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_openai import OpenAIEmbeddings
 
+from app.core.config import settings
 from app.core.database import async_session
 from app.models.rag import RAGDocument, RAGEmbedding
 
+embeddings_model = OpenAIEmbeddings(
+    model="deepseek-embedding",
+    openai_api_key=settings.DEEPSEEK_API_KEY,
+    openai_api_base=f"{settings.DEEPSEEK_BASE_URL}/v1",
+    dimensions=1536,
+)
+
+
+async def _get_embedding(text: str) -> list[float]:
+    """获取单条文本的 embedding 向量"""
+    try:
+        result = await embeddings_model.aembed_query(text)
+        return result
+    except Exception:
+        return [0.0] * 1536
+
+
+async def _get_embeddings(texts: list[str]) -> list[list[float]]:
+    """批量获取 embedding 向量"""
+    try:
+        result = await embeddings_model.aembed_documents(texts)
+        return result
+    except Exception:
+        return [[0.0] * 1536] * len(texts)
+
 
 async def process_and_store(title: str, file_name: str, content: str, uploaded_by: Optional[uuid.UUID] = None):
-    """上传 Markdown → TextSplitter 切片(chunk=500, overlap=50) → 写入数据库"""
+    """上传 Markdown → TextSplitter 切片 → 真实 embedding → 写入数据库"""
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     chunks = splitter.split_text(content)
+
+    chunk_embeddings = await _get_embeddings(chunks)
 
     async with async_session() as db:
         doc = RAGDocument(
@@ -21,7 +50,7 @@ async def process_and_store(title: str, file_name: str, content: str, uploaded_b
             chunks=len(chunks),
             uploaded_by=uploaded_by,
             uploaded_at=datetime.utcnow(),
-            vectorized_at=datetime.utcnow(),  # 本地切片无需远程向量化
+            vectorized_at=datetime.utcnow(),
         )
         db.add(doc)
         await db.commit()
@@ -32,7 +61,7 @@ async def process_and_store(title: str, file_name: str, content: str, uploaded_b
                 document_id=doc.id,
                 chunk_index=i,
                 content=chunk,
-                embedding=[0.0] * 1536,  # 占位向量（后续可替换为真实 embedding）
+                embedding=chunk_embeddings[i],
             )
             db.add(emb)
 
@@ -42,30 +71,25 @@ async def process_and_store(title: str, file_name: str, content: str, uploaded_b
 
 
 async def query_vector_store(query: str, top_k: int = 5) -> list[str]:
-    """关键词匹配 + 相似度排序检索知识库"""
+    """pgvector 余弦相似度检索知识库"""
+    query_embedding = await _get_embedding(query)
+
     async with async_session() as db:
-        from sqlmodel import select
-        result = await db.execute(select(RAGEmbedding))
-        rows = result.scalars().all()
+        from sqlalchemy import text
 
-        if not rows:
-            return []
+        sql = text("""
+            SELECT content, 1 - (embedding <=> :query_vec::vector) AS similarity
+            FROM rag_embeddings
+            ORDER BY embedding <=> :query_vec::vector
+            LIMIT :top_k
+        """)
+        result = await db.execute(sql, {
+            "query_vec": str(query_embedding),
+            "top_k": top_k,
+        })
+        rows = result.fetchall()
 
-        # 字符级匹配（兼容中文无空格 + 英文有空格）
-        query_lower = query.lower()
-        query_chars = set(query_lower.replace(" ", ""))
-        scored = []
-        for row in rows:
-            content_lower = row.content.lower()
-            # 空格分词 + 单字 n-gram 双通路
-            word_score = sum(1 for word in query_lower.split() if word in content_lower)
-            char_score = sum(1 for char in query_chars if char in content_lower)
-            score = word_score + char_score
-            if score > 0:
-                scored.append((score, row.content))
-
-        scored.sort(key=lambda x: -x[0])
-        return [content for _, content in scored[:top_k]]
+        return [row[0] for row in rows if row[1] > 0.1]
 
 
 async def get_all_documents():

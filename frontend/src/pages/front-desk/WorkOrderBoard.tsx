@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react'
-import { Card, Button, Select, message, Badge } from 'antd'
+import { useState, useEffect, useRef } from 'react'
+import { Card, Button, Select, message, Badge, notification } from 'antd'
 import { CheckCircleOutlined, ClockCircleOutlined } from '@ant-design/icons'
 import apiClient from '../../api/client'
+import { useWebSocket } from '../../hooks/useWebSocket'
+import NewWorkOrderAlert from './NewWorkOrderAlert'
 
 interface WorkOrder {
   id: string
@@ -14,13 +16,63 @@ interface WorkOrder {
   created_at: string
 }
 
+interface StaffUser {
+  id: string
+  name: string
+  role: string
+}
+
 export default function WorkOrderBoard() {
   const [orders, setOrders] = useState<WorkOrder[]>([])
+  const [staffList, setStaffList] = useState<StaffUser[]>([])
   const [staff, setStaff] = useState('')
+  const [alertOpen, setAlertOpen] = useState(false)
+  const [newOrder, setNewOrder] = useState<WorkOrder | null>(null)
+  const ws = useWebSocket()
 
   const fetchOrders = () => apiClient.get('/api/work-orders/').then(({ data }) => setOrders(data)).catch(() => {})
 
-  useEffect(() => { fetchOrders() }, [])
+  const fetchStaff = () => {
+    apiClient.get('/api/admin/users', { params: { role: 'front_desk' } })
+      .then(({ data }) => setStaffList(data))
+      .catch(() => {})
+  }
+
+  useEffect(() => {
+    fetchOrders()
+    fetchStaff()
+  }, [])
+
+  useEffect(() => {
+    const unsubNew = ws.on('work_order.new', (data) => {
+      fetchOrders()
+      setNewOrder({
+        id: data.order_id,
+        room_id: data.room_number || '',
+        type: data.type,
+        content: data.content,
+        assigned_resource: null,
+        status: 'submitted',
+        ai_generated: true,
+        created_at: new Date().toISOString(),
+      })
+      setAlertOpen(true)
+      notification.info({
+        message: '新工单提醒',
+        description: `${data.type === 'delivery' ? '📦' : '🔧'} ${data.content}`,
+        placement: 'topRight',
+      })
+    })
+
+    const unsubStatus = ws.on('work_order.status_change', () => {
+      fetchOrders()
+    })
+
+    return () => {
+      unsubNew()
+      unsubStatus()
+    }
+  }, [ws])
 
   const pendingOrders = orders.filter((o) => o.status === 'submitted')
   const activeOrders = orders.filter((o) => ['accepted', 'processing'].includes(o.status))
@@ -97,11 +149,10 @@ export default function WorkOrderBoard() {
           value={staff || undefined}
           onChange={setStaff}
           allowClear
-          options={[
-            { value: '张阿姨', label: '🧹 张阿姨 (保洁)' },
-            { value: '李师傅', label: '🔧 李师傅 (维修)' },
-            { value: '王保洁', label: '🧹 王保洁 (保洁)' },
-          ]}
+          options={staffList.map((s) => ({
+            value: s.name,
+            label: s.name,
+          }))}
         />
       </div>
 
@@ -134,6 +185,13 @@ export default function WorkOrderBoard() {
           )}
         </div>
       </div>
+
+      <NewWorkOrderAlert
+        open={alertOpen}
+        workOrder={newOrder}
+        onClose={() => setAlertOpen(false)}
+        onAccept={() => { setAlertOpen(false); fetchOrders() }}
+      />
     </div>
   )
 }

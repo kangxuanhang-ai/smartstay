@@ -34,7 +34,7 @@ export default function AdminPage() {
     try {
       await apiClient.post(`/api/admin/simulate/${type}`)
       message.success('模拟事件已触发')
-      if (type === 'prompt-inject') fetchLogs()
+      fetchLogs()
     } catch {
       message.error('模拟失败')
     }

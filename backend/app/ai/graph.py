@@ -75,7 +75,7 @@ async def action_node(state: AgentState):
             tool_args = call["args"]
 
             # 安全拦截
-            guard_result = await execute_security_guard(tool_name, state["role"], tool_args, user_text)
+            guard_result = await execute_security_guard(tool_name, state["role"], tool_args, user_text, user_id=state.get("user_id", ""))
             if not guard_result["ok"]:
                 cards.append({"type": "error", "title": guard_result["error"]})
                 continue
