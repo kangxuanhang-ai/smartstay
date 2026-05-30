@@ -11,28 +11,19 @@
 
 **Date**: 2026-05-30
 **What was done**:
-- Project fully explored (backend, B-end frontend, C-end Flutter, all docs)
-- Agent harness created: CLAUDE.md, feature_list.json, progress.md, init.sh, session-handoff.md
-- **F009 完成**: 全局 UTC → 中国标准时间替换
-  - 新建 `backend/app/core/utils.py` (cst_now + cst_isoformat)
-  - 修改 20 个文件，30+ 处 datetime.utcnow → cst_now
-  - 2 个 schema 加 field_serializer 输出 +08:00 后缀
-  - Flutter C 端 DateTime.tryParse 加 .toLocal()
-  - B 端 RoomGridPage 去掉 'Z' 后缀
-  - 三端编译全部通过
+- F009 完成: 全局 UTC → 中国标准时间替换 (20个文件, 30+处)
+- F010 完成: 修复两个 bug (用户管理住客数据 + C端改密无反应)
+- F011 完成: C端首页改版 (home_page.dart 完全重写, 5区块高端酒店风)
+- Harness 创建并强制执行
 
 **What's pending**:
-- F006 (C-end navigation redesign) is planned but not started — see spec and plan files
+- F006 (C-end navigation redesign) 未开始
 
 **Blockers**: None
 
 **Next Steps**:
-1. Pick a feature from `feature_list.json` (F006 or a new one)
-2. Read its spec in `docs/superpowers/specs/`
-3. Read its plan in `docs/superpowers/plans/`
-4. Update `feature_list.json` with `active_feature`
-5. Start implementing, run verification after each task
-6. **按 harness 流程走**: 每个任务完成后更新 feature_list.json + progress.md
+1. 用户测试首页效果
+2. 按 CLAUDE.md MANDATORY SESSION CHECKLIST 走
 
 ---
 

@@ -57,6 +57,35 @@
       "name": "UTC → 中国标准时间 全局替换",
       "status": "done",
       "evidence": "新建 utils.py (cst_now/cst_isoformat), 修改 20 个文件共 30+ 处, 后端序列化加 +08:00 后缀, Flutter 加 .toLocal(), 三端编译通过"
+    },
+    {
+      "id": "F011",
+      "name": "C-end homepage redesign",
+      "status": "done",
+      "spec": "docs/superpowers/specs/2026-05-30-c-end-homepage-redesign-design.md",
+      "plan": "docs/superpowers/plans/2026-05-30-c-end-homepage-redesign-plan.md",
+      "evidence": "home_page.dart 完全重写 (498 insertions, 64 deletions), 5个区块: Banner渐变+欢迎卡片+亮点网格+设施列表+底部信息, dart analyze 0 issues"
+    },
+    {
+      "id": "F010",
+      "name": "Bug fixes: 用户管理住客数据 + C端首次登录改密无反应",
+      "status": "done",
+      "bugs": [
+        {
+          "id": "B001",
+          "desc": "用户管理看不到C端住客数据",
+          "root_cause": "前端用 role=guest 查住客，后端用 type=guest 区分",
+          "fix": "UserManagementPage.tsx: role=guest → type=guest",
+          "verified": true
+        },
+        {
+          "id": "B002",
+          "desc": "C端首次登录改密后点击确认没反应",
+          "root_cause": "GoRouter redirect 在 LoginBottomSheet 处理改密前就跳转到 /change-password，弹窗被关闭",
+          "fix": "app.dart 移除 passwordChangeRequired 自动跳转; change_password_page.dart 加 context.go('/home')",
+          "verified": true
+        }
+      ]
     }
   ],
   "upcoming": [

@@ -59,6 +59,27 @@
 - Flutter C 端 `DateTime.tryParse()` 加 `.toLocal()`
 - B 端 `RoomGridPage` 去掉 `'Z'` 后缀
 
+### F010 — Bug Fixes (2026-05-30)
+
+**B001: 用户管理看不到C端住客数据**
+- 根因：前端 `role=guest` → 后端走 Staff 表查询，查不到 Guest
+- 修复：`UserManagementPage.tsx` 改为 `type=guest`
+- 验证：API `/api/admin/users?type=guest` 返回住客数据 ✅
+
+**B002: C端首次登录改密后没反应**
+- 根因：GoRouter redirect 在 LoginBottomSheet 改密前跳转 `/change-password`，弹窗被关闭
+- 修复：`app.dart` 移除 `passwordChangeRequired` 自动跳转；`change_password_page.dart` 加 `context.go('/home')`
+- 验证：dart analyze 通过 ✅
+
+### F011 — C-end Homepage Redesign (2026-05-30)
+- 完全重写 `home_page.dart` (498 insertions, 64 deletions)
+- 5个区块: Banner渐变 → 欢迎卡片(登录后) → 酒店亮点2x2 → 设施列表(色条) → 底部信息
+- 渐变Banner: #1A1A2E → #1677FF, 酒店名+标语+导航/拨号按钮
+- 欢迎卡片: 用户名+房间信息(API获取)+4个快捷入口
+- 亮点卡片: AI管家/机器人送物/智能客房/空中花园, 点击拦截登录
+- 设施卡片: 4px彩色左条, 按设施类型着色
+- dart analyze 0 issues, 已提交
+
 ## What's Next
 
 ### F006 — C-end Navigation Redesign (planned)
