@@ -6,11 +6,12 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
-from app.models.user import User
+from app.models.guest import Guest
+from app.models.user import Staff
 from app.models.order import Order
 from app.models.room import Room
 from app.models.chat import ChatSession, ChatMessage
@@ -25,7 +26,7 @@ router = APIRouter(prefix="/api/ai", tags=["ai"])
 @router.post("/chat")
 async def ai_chat(
     req: ChatRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: Guest = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """SSE 流式对话接口"""
@@ -65,7 +66,7 @@ async def ai_chat(
         "user_id": str(current_user.id),
         "room_id": str(order.room_id) if room else None,
         "order_id": str(order.id),
-        "role": current_user.role,
+        "role": "guest" if isinstance(current_user, Guest) else current_user.role,
         "intent": "chat",
         "business_cards": [],
     }
@@ -73,28 +74,55 @@ async def ai_chat(
     async def event_generator():
         final_text = ""
         final_cards = []
+        node_executed = False  # 标记是否已进入实际节点执行（排除分类路由的 LLM 事件）
 
-        async for event in graph.astream_events(
-            initial_state,
-            config={"configurable": {"thread_id": str(session.id)}},
-            version="v2",
-        ):
-            kind = event["event"]
-            name = event.get("name", "")
+        try:
+            async for event in graph.astream_events(
+                initial_state,
+                config={"configurable": {"thread_id": str(session.id)}},
+                version="v2",
+            ):
+                kind = event["event"]
+                name = event.get("name", "")
 
-            if kind == "on_chat_model_stream":
-                chunk = event["data"]["chunk"]
-                token = chunk.content if hasattr(chunk, "content") and chunk.content else ""
-                if token:
-                    final_text += token
-                    yield f"data: {json.dumps({'type': 'text', 'content': token}, ensure_ascii=False)}\n\n"
+                # 节点开始执行 → 后续的 on_chat_model_stream 都来自实际节点
+                if kind == "on_chain_start" and name in ("chat_response", "knowledge_response", "action_response"):
+                    node_executed = True
 
-            elif kind == "on_chain_end" and name == "action_response":
-                output = event["data"].get("output", {})
-                cards = output.get("business_cards", [])
-                final_cards = cards
-                for card in cards:
-                    yield f"data: {json.dumps({'type': 'card', 'card': card}, ensure_ascii=False)}\n\n"
+                if kind == "on_chat_model_stream" and node_executed:
+                    chunk = event["data"]["chunk"]
+                    token = chunk.content if hasattr(chunk, "content") and chunk.content else ""
+                    if token:
+                        final_text += token
+                        yield f"data: {json.dumps({'type': 'text', 'content': token}, ensure_ascii=False)}\n\n"
+
+                elif kind == "on_chain_end" and name == "action_response":
+                    output = event["data"].get("output", {})
+                    cards = output.get("business_cards", [])
+                    final_cards = cards
+                    for card in cards:
+                        yield f"data: {json.dumps({'type': 'card', 'card': card}, ensure_ascii=False)}\n\n"
+
+                # 兜底：从 knowledge_response / chat_response 节点 output 中提取 AI 回复
+                elif kind == "on_chain_end" and name in ("knowledge_response", "chat_response"):
+                    output = event["data"].get("output", {})
+                    messages = output.get("messages", [])
+                    # 从后往前找最后一条 AIMessage
+                    ai_content = None
+                    for msg in reversed(messages):
+                        if isinstance(msg, AIMessage) and msg.content:
+                            ai_content = msg.content
+                            break
+                        content = getattr(msg, "content", None)
+                        if isinstance(msg, dict) and msg.get("type") == "ai" and content:
+                            ai_content = content
+                            break
+                    if ai_content:
+                        final_text = ai_content
+                        yield f"data: {json.dumps({'type': 'text', 'content': ai_content}, ensure_ascii=False)}\n\n"
+
+        except Exception as exc:
+            yield f"data: {json.dumps({'type': 'text', 'content': f'抱歉，系统暂时无法回答，请联系前台。({exc})'}, ensure_ascii=False)}\n\n"
 
         # 保存 AI 回复
         ai_msg = ChatMessage(
@@ -114,7 +142,7 @@ async def ai_chat(
 @router.get("/chat/{session_id}/history")
 async def get_chat_history(
     session_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: Guest = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     # 校验会话属于当前用户
@@ -147,7 +175,7 @@ async def get_chat_history(
 
 @router.get("/pricing/logs")
 async def get_pricing_logs(
-    current_user: User = Depends(require_role("manager")),
+    current_user: Staff = Depends(require_role("manager")),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(AIPricingLog).order_by(AIPricingLog.created_at.desc()).limit(50))
@@ -170,7 +198,7 @@ async def get_pricing_logs(
 @router.put("/pricing/{log_id}/approve")
 async def approve_pricing(
     log_id: str,
-    current_user: User = Depends(require_role("manager")),
+    current_user: Staff = Depends(require_role("manager")),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(AIPricingLog).where(AIPricingLog.id == uuid.UUID(log_id)))
@@ -195,7 +223,7 @@ async def approve_pricing(
 @router.put("/pricing/{log_id}/reject")
 async def reject_pricing(
     log_id: str,
-    current_user: User = Depends(require_role("manager")),
+    current_user: Staff = Depends(require_role("manager")),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(AIPricingLog).where(AIPricingLog.id == uuid.UUID(log_id)))
@@ -213,7 +241,7 @@ async def reject_pricing(
 @router.post("/safety-threshold")
 async def set_safety_threshold(
     req: SafetyThresholdRequest,
-    current_user: User = Depends(require_role("manager")),
+    current_user: Staff = Depends(require_role("manager")),
 ):
     """店长设置 AI 定价安全阈值"""
     threshold = req.threshold

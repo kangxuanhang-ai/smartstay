@@ -1,46 +1,45 @@
 import uuid
+import logging
 from datetime import datetime
 from typing import Optional
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings
 
-from app.core.config import settings
 from app.core.database import async_session
 from app.models.rag import RAGDocument, RAGEmbedding
 
-embeddings_model = OpenAIEmbeddings(
-    model="deepseek-embedding",
-    openai_api_key=settings.DEEPSEEK_API_KEY,
-    openai_api_base=f"{settings.DEEPSEEK_BASE_URL}/v1",
-    dimensions=1536,
-)
+logger = logging.getLogger(__name__)
+
+EMBEDDING_DIM = 512  # bge-small-zh-v1.5 输出维度
+
+# 懒加载 embedder，避免 uvicorn --reload 子进程导入问题
+_embedder = None
 
 
-async def _get_embedding(text: str) -> list[float]:
-    """获取单条文本的 embedding 向量"""
-    try:
-        result = await embeddings_model.aembed_query(text)
-        return result
-    except Exception:
-        return [0.0] * 1536
+def _get_embedder():
+    global _embedder
+    if _embedder is None:
+        from fastembed import TextEmbedding
+        _embedder = TextEmbedding(model_name="BAAI/bge-small-zh-v1.5")
+    return _embedder
 
 
-async def _get_embeddings(texts: list[str]) -> list[list[float]]:
-    """批量获取 embedding 向量"""
-    try:
-        result = await embeddings_model.aembed_documents(texts)
-        return result
-    except Exception:
-        return [[0.0] * 1536] * len(texts)
+def _embed_texts(texts: list[str]) -> list[list[float]]:
+    """同步批量 embedding"""
+    return [vec.tolist() for vec in _get_embedder().embed(texts)]
+
+
+def _embed_query(text: str) -> list[float]:
+    """同步单条 embedding"""
+    return list(next(iter(_get_embedder().embed([text]))))
 
 
 async def process_and_store(title: str, file_name: str, content: str, uploaded_by: Optional[uuid.UUID] = None):
-    """上传 Markdown → TextSplitter 切片 → 真实 embedding → 写入数据库"""
+    """上传 Markdown → TextSplitter 切片 → 本地 embedding → 写入数据库"""
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     chunks = splitter.split_text(content)
 
-    chunk_embeddings = await _get_embeddings(chunks)
+    chunk_embeddings = _embed_texts(chunks)
 
     async with async_session() as db:
         doc = RAGDocument(
@@ -72,23 +71,23 @@ async def process_and_store(title: str, file_name: str, content: str, uploaded_b
 
 async def query_vector_store(query: str, top_k: int = 5) -> list[str]:
     """pgvector 余弦相似度检索知识库"""
-    query_embedding = await _get_embedding(query)
+    from sqlalchemy import cast, func
+    from pgvector.sqlalchemy import Vector
+
+    query_vec = _embed_query(query)
 
     async with async_session() as db:
-        from sqlalchemy import text
+        from sqlalchemy import select as sa_select
 
-        sql = text("""
-            SELECT content, 1 - (embedding <=> :query_vec::vector) AS similarity
-            FROM rag_embeddings
-            ORDER BY embedding <=> :query_vec::vector
-            LIMIT :top_k
-        """)
-        result = await db.execute(sql, {
-            "query_vec": str(query_embedding),
-            "top_k": top_k,
-        })
+        vec_literal = cast(query_vec, Vector(EMBEDDING_DIM))
+        distance = RAGEmbedding.embedding.cosine_distance(vec_literal)
+        stmt = (
+            sa_select(RAGEmbedding.content, (1 - distance).label("similarity"))
+            .order_by(distance)
+            .limit(top_k)
+        )
+        result = await db.execute(stmt)
         rows = result.fetchall()
-
         return [row[0] for row in rows if row[1] > 0.1]
 
 

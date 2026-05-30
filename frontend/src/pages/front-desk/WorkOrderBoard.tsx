@@ -8,6 +8,7 @@ import NewWorkOrderAlert from './NewWorkOrderAlert'
 interface WorkOrder {
   id: string
   room_id: string
+  room_number?: string
   type: string
   content: string
   assigned_resource: string | null
@@ -28,19 +29,20 @@ export default function WorkOrderBoard() {
   const [staff, setStaff] = useState('')
   const [alertOpen, setAlertOpen] = useState(false)
   const [newOrder, setNewOrder] = useState<WorkOrder | null>(null)
+  const [assigningId, setAssigningId] = useState<string | null>(null)
   const ws = useWebSocket()
 
   const fetchOrders = () => apiClient.get('/api/work-orders/').then(({ data }) => setOrders(data))
 
-  const fetchStaff = () => {
-    apiClient.get('/api/admin/users', { params: { role: 'front_desk' } })
+  const fetchStaff = (workOrderType?: string) => {
+    const params = workOrderType ? `?work_order_type=${workOrderType}` : ''
+    apiClient.get(`/api/work-orders/staff${params}`)
       .then(({ data }) => setStaffList(data))
       .catch(() => {})
   }
 
   useEffect(() => {
     fetchOrders()
-    fetchStaff()
   }, [])
 
   useEffect(() => {
@@ -74,8 +76,8 @@ export default function WorkOrderBoard() {
     }
   }, [ws])
 
-  const pendingOrders = orders.filter((o) => o.status === 'submitted')
-  const activeOrders = orders.filter((o) => ['accepted', 'processing'].includes(o.status))
+  const pendingOrders = orders.filter((o) => ['submitted', 'accepted'].includes(o.status))
+  const activeOrders = orders.filter((o) => o.status === 'processing')
   const completedOrders = orders.filter((o) => o.status === 'completed')
 
   const handleAccept = async (id: string) => {
@@ -92,8 +94,15 @@ export default function WorkOrderBoard() {
       await apiClient.put(`/api/work-orders/${id}/assign`, { assigned_resource: staff })
       message.success('已指派')
       setStaff('')
+      setAssigningId(null)
       fetchOrders()
     } catch { message.error('操作失败') }
+  }
+
+  const startAssign = (id: string, workOrderType: string) => {
+    setAssigningId(id)
+    setStaff('')
+    fetchStaff(workOrderType)
   }
 
   const handleComplete = async (id: string) => {
@@ -109,6 +118,7 @@ export default function WorkOrderBoard() {
       <div className="!flex !items-center !justify-between !mb-3">
         <strong className="!text-sm !text-slate-800 !truncate">
           {wo.type === 'delivery' ? '📦' : '🔧'} {wo.content}
+          {wo.room_number && <span className="!ml-2 !text-xs !font-normal !text-slate-400">Room {wo.room_number}</span>}
         </strong>
         <span className="!text-xs !text-slate-500 !shrink-0 !ml-2">
           {new Date(wo.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
@@ -121,9 +131,31 @@ export default function WorkOrderBoard() {
         </div>
       )}
       {showAccept && (
-        <div className="!flex !flex-wrap !gap-2">
-          <Button size="small" type="primary" onClick={() => handleAccept(wo.id)}>接单</Button>
-          <Button size="small" onClick={() => handleAssign(wo.id)}>指派处理</Button>
+        <div className="!flex !flex-wrap !items-center !gap-2">
+          {wo.status === 'submitted' && (
+            <Button size="small" type="primary" onClick={() => handleAccept(wo.id)}>接单</Button>
+          )}
+          {wo.status === 'accepted' && (
+            <span className="!inline-flex !items-center !gap-1 !text-xs !text-blue-600 !bg-blue-50 !px-2 !py-0.5 !rounded-full">
+              ✅ 已接单
+            </span>
+          )}
+          {assigningId === wo.id ? (
+            <div className="!flex !items-center !gap-1">
+              <Select
+                style={{ width: 130 }}
+                size="small"
+                placeholder={wo.type === 'delivery' ? '选保洁' : '选维修'}
+                value={staff || undefined}
+                onChange={setStaff}
+                options={staffList.map((s) => ({ value: s.name, label: s.name }))}
+              />
+              <Button size="small" type="primary" onClick={() => handleAssign(wo.id)}>确认</Button>
+              <Button size="small" onClick={() => { setAssigningId(null); setStaff('') }}>取消</Button>
+            </div>
+          ) : (
+            <Button size="small" onClick={() => startAssign(wo.id, wo.type)}>指派处理</Button>
+          )}
         </div>
       )}
       {!showAccept && wo.status === 'processing' && (
@@ -140,21 +172,6 @@ export default function WorkOrderBoard() {
   return (
     <div>
       <h2 className="!text-xl !font-bold !text-slate-800 !mb-6">📋 客服工单流看板</h2>
-
-      <div className="!mb-6 !flex !flex-wrap !items-center !gap-3">
-        <span className="!text-sm !font-medium !text-slate-600">指派人员：</span>
-        <Select
-          style={{ width: 220 }}
-          placeholder="选择值班保洁/维修"
-          value={staff || undefined}
-          onChange={setStaff}
-          allowClear
-          options={staffList.map((s) => ({
-            value: s.name,
-            label: s.name,
-          }))}
-        />
-      </div>
 
       <div className="!grid !grid-cols-1 xl:!grid-cols-2 !gap-6">
         <div>

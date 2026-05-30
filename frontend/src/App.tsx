@@ -1,4 +1,4 @@
-import { ConfigProvider } from 'antd'
+import { ConfigProvider, App as AntApp } from 'antd'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import theme from './theme'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -18,6 +18,7 @@ export default function App() {
   return (
     <ErrorBoundary>
     <ConfigProvider theme={theme}>
+      <AntApp>
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
@@ -35,6 +36,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       </BrowserRouter>
+      </AntApp>
     </ConfigProvider>
     </ErrorBoundary>
   )

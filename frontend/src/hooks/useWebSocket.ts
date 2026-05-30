@@ -1,68 +1,69 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useCallback } from 'react'
 import { useAuthStore } from '../stores/authStore'
 
 type EventHandler = (data: any) => void
 
 const WS_URL = 'ws://localhost:8000/ws'
 
+// 模块级单例：全局唯一连接
+let globalWs: WebSocket | null = null
+let globalHandlers: Map<string, Set<EventHandler>> = new Map()
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let currentToken: string | null = null
+
+function ensureConnection(token: string) {
+  if (globalWs && globalWs.readyState === WebSocket.OPEN && currentToken === token) return
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
+  if (globalWs) {
+    globalWs.onclose = null
+    globalWs.close()
+  }
+  currentToken = token
+  const ws = new WebSocket(`${WS_URL}?token=${token}`)
+  globalWs = ws
+
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data)
+      const event = msg.event
+      const data = msg.data
+      if (event && globalHandlers.has(event)) {
+        for (const handler of globalHandlers.get(event)!) {
+          handler(data)
+        }
+      }
+    } catch {}
+  }
+
+  ws.onclose = () => {
+    reconnectTimer = setTimeout(() => ensureConnection(token), 3000)
+  }
+
+  ws.onerror = () => {
+    ws.close()
+  }
+}
+
 export function useWebSocket() {
   const token = useAuthStore((s) => s.accessToken)
-  const wsRef = useRef<WebSocket | null>(null)
-  const handlersRef = useRef<Map<string, Set<EventHandler>>>(new Map())
-  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const on = useCallback((event: string, handler: EventHandler) => {
-    if (!handlersRef.current.has(event)) {
-      handlersRef.current.set(event, new Set())
+    if (!globalHandlers.has(event)) {
+      globalHandlers.set(event, new Set())
     }
-    handlersRef.current.get(event)!.add(handler)
+    globalHandlers.get(event)!.add(handler)
     return () => {
-      handlersRef.current.get(event)?.delete(handler)
+      globalHandlers.get(event)?.delete(handler)
     }
   }, [])
 
   const off = useCallback((event: string, handler: EventHandler) => {
-    handlersRef.current.get(event)?.delete(handler)
+    globalHandlers.get(event)?.delete(handler)
   }, [])
 
   useEffect(() => {
     if (!token) return
-
-    const connect = () => {
-      const ws = new WebSocket(`${WS_URL}?token=${token}`)
-      wsRef.current = ws
-
-      ws.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data)
-          const event = msg.event
-          const data = msg.data
-          if (event && handlersRef.current.has(event)) {
-            for (const handler of handlersRef.current.get(event)!) {
-              handler(data)
-            }
-          }
-        } catch {}
-      }
-
-      ws.onclose = () => {
-        reconnectTimer.current = setTimeout(connect, 3000)
-      }
-
-      ws.onerror = () => {
-        ws.close()
-      }
-    }
-
-    connect()
-
-    return () => {
-      if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
-      if (wsRef.current) {
-        wsRef.current.onclose = null
-        wsRef.current.close()
-      }
-    }
+    ensureConnection(token)
   }, [token])
 
   return { on, off }

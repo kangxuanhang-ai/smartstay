@@ -15,7 +15,7 @@ class AIPricingLog(SQLModel, table=True):
     suggested_price: int
     status: str = Field(default="pending", max_length=20)
     suggested_by: str = Field(default="AI \u00b7 \u5b9a\u4ef7Agent", max_length=50)
-    confirmed_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
+    confirmed_by: Optional[uuid.UUID] = Field(default=None, foreign_key="staff.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     decided_at: Optional[datetime] = Field(default=None)
 

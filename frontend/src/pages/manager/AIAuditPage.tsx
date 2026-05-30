@@ -31,7 +31,7 @@ export default function AIAuditPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  if (loading) return <div className="flex justify-center py-20"><Spin size="large" tip="加载审计报告..." /></div>
+  if (loading) return <div className="flex justify-center py-20"><Spin size="large" description="加载审计报告..." /></div>
 
   if (!report) {
     return (

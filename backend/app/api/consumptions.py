@@ -6,7 +6,7 @@ from sqlmodel import select
 
 from app.core.database import get_db
 from app.core.deps import require_role
-from app.models.user import User
+from app.models.user import Staff
 from app.models.consumption import Consumption
 from app.schemas.consumption import ConsumptionCreate, ConsumptionResponse
 
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/consumptions", tags=["consumptions"])
 @router.post("/", response_model=ConsumptionResponse)
 async def create_consumption(
     req: ConsumptionCreate,
-    current_user: User = Depends(require_role("front_desk")),
+    current_user: Staff = Depends(require_role("front_desk")),
     db: AsyncSession = Depends(get_db),
 ):
     c = Consumption(
@@ -48,7 +48,7 @@ async def create_consumption(
 @router.get("/{order_id}", response_model=list[ConsumptionResponse])
 async def get_order_consumptions(
     order_id: str,
-    current_user: User = Depends(require_role("front_desk", "manager")),
+    current_user: Staff = Depends(require_role("front_desk", "manager")),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(

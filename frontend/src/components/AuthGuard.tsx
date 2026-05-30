@@ -19,7 +19,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [token, user, setUser, logout])
 
   if (!token) return <Navigate to="/login" />
-  if (!user) return <div className="min-h-screen flex items-center justify-center"><Spin size="large" tip="加载中..." /></div>
+  if (!user) return <div className="min-h-screen flex items-center justify-center"><Spin size="large" description="加载中..." /></div>
 
   return <>{children}</>
 }

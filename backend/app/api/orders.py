@@ -7,7 +7,8 @@ from sqlmodel import select, update
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
 from app.core.security import get_password_hash
-from app.models.user import User
+from app.models.guest import Guest
+from app.models.user import Staff
 from app.models.room import Room
 from app.models.order import Order
 from app.models.consumption import Consumption
@@ -21,23 +22,26 @@ router = APIRouter(prefix="/api/orders", tags=["orders"])
 @router.post("/checkin")
 async def check_in(
     req: CheckInRequest,
-    current_user: User = Depends(require_role("front_desk")),
+    current_user: Staff = Depends(require_role("front_desk")),
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        result = await db.execute(select(User).where(User.id_card == req.id_card))
-        user = result.scalar_one_or_none()
-        if not user:
-            user = User(
+        result = await db.execute(select(Guest).where(Guest.id_card == req.id_card))
+        guest = result.scalar_one_or_none()
+        if not guest:
+            guest = Guest(
                 id_card=req.id_card,
                 phone=req.phone,
                 name=req.name,
                 hashed_password=get_password_hash("123456"),
                 is_first_login=True,
-                role="guest",
+                is_active=True,
             )
-            db.add(user)
+            db.add(guest)
             await db.flush()
+        else:
+            guest.is_active = True
+            db.add(guest)
 
         result = await db.execute(select(Room).where(Room.id == uuid.UUID(req.room_id)))
         room = result.scalar_one_or_none()
@@ -49,7 +53,7 @@ async def check_in(
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Room is not available")
 
         order = Order(
-            user_id=user.id,
+            user_id=guest.id,
             room_id=room.id,
             status="checked_in",
             source=req.source,
@@ -70,7 +74,7 @@ async def check_in(
 
 @router.get("/current", response_model=OrderResponse)
 async def get_current_order(
-    current_user: User = Depends(require_role("guest")),
+    current_user: Guest = Depends(require_role("guest")),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -83,7 +87,7 @@ async def get_current_order(
 
 
 @router.get("/{order_id}/bill", response_model=BillResponse)
-async def get_bill(order_id: str, current_user: User = Depends(require_role("guest", "front_desk", "manager")), db: AsyncSession = Depends(get_db)):
+async def get_bill(order_id: str, current_user: Guest | Staff = Depends(require_role("guest", "front_desk", "manager")), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Order).where(Order.id == uuid.UUID(order_id)))
     order = result.scalar_one_or_none()
     if not order:
@@ -117,22 +121,39 @@ async def get_bill(order_id: str, current_user: User = Depends(require_role("gue
 @router.get("/room/{room_id}/active")
 async def get_active_order_by_room(
     room_id: str,
-    current_user: User = Depends(require_role("front_desk")),
+    current_user: Staff = Depends(require_role("front_desk")),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Order).where(Order.room_id == uuid.UUID(room_id), Order.status == "checked_in")
+        select(Order)
+        .where(Order.room_id == uuid.UUID(room_id), Order.status == "checked_in")
+        .order_by(Order.created_at.desc())
     )
-    order = result.scalar_one_or_none()
-    if not order:
+    orders = result.scalars().all()
+    if not orders:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active order for this room")
-    return {"id": str(order.id), "room_id": str(order.room_id), "user_id": str(order.user_id), "status": order.status, "source": order.source, "check_in_time": order.check_in_time.isoformat() if order.check_in_time else None}
+    order = orders[0]
+
+    result_guest = await db.execute(select(Guest).where(Guest.id == order.user_id))
+    guest = result_guest.scalar_one_or_none()
+
+    return {
+        "id": str(order.id),
+        "room_id": str(order.room_id),
+        "user_id": str(order.user_id),
+        "status": order.status,
+        "source": order.source,
+        "check_in_time": order.check_in_time.isoformat() if order.check_in_time else None,
+        "guest_name": guest.name if guest else None,
+        "guest_id_card": guest.id_card if guest else None,
+        "guest_phone": guest.phone if guest else None,
+    }
 
 
 @router.put("/{order_id}/checkout")
 async def checkout(
     order_id: str,
-    current_user: User = Depends(require_role("front_desk")),
+    current_user: Staff = Depends(require_role("front_desk")),
     db: AsyncSession = Depends(get_db),
 ):
     try:
@@ -149,6 +170,22 @@ async def checkout(
         await db.execute(
             update(Room).where(Room.id == order.room_id).values(status="dirty")
         )
+
+        result_guest = await db.execute(select(Guest).where(Guest.id == order.user_id))
+        guest = result_guest.scalar_one_or_none()
+        if guest:
+            result_active = await db.execute(
+                select(Order).where(
+                    Order.user_id == order.user_id,
+                    Order.status == "checked_in",
+                    Order.id != order.id,
+                )
+            )
+            remaining = result_active.scalars().all()
+            if not remaining:
+                guest.is_active = False
+                db.add(guest)
+
         await db.commit()
 
         await manager.broadcast_biz({
@@ -168,7 +205,7 @@ async def checkout(
 async def submit_invoice(
     order_id: str,
     req: InvoiceRequest,
-    current_user: User = Depends(require_role("guest")),
+    current_user: Guest = Depends(require_role("guest")),
     db: AsyncSession = Depends(get_db),
 ):
     # 校验订单属于当前用户

@@ -8,7 +8,7 @@ class Order(SQLModel, table=True):
     __tablename__ = "orders"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    user_id: uuid.UUID = Field(foreign_key="users.id")
+    user_id: uuid.UUID = Field(foreign_key="guests.id")
     room_id: uuid.UUID = Field(foreign_key="rooms.id")
     status: str = Field(max_length=20, default="pending")
     check_in_time: Optional[datetime] = Field(default=None)

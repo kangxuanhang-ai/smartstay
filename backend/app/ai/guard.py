@@ -77,6 +77,7 @@ async def _log_violation(user_id: str, user_role: str, tool_name: str, tool_para
         async with async_session() as db:
             log_entry = AISecurityLog(
                 user_id=uuid.UUID(user_id) if user_id else None,
+                user_type="guest" if user_role == "guest" else "staff",
                 role=user_role,
                 tool_name=tool_name,
                 tool_params=tool_params,

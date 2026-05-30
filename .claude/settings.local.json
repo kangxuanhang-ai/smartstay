@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(poetry run *)",
+      "Bash(npx tsc *)",
+      "Bash(PGPASSWORD=postgres psql -h localhost -U postgres -d smartstay -c ' *)",
+      "Bash(PGPASSWORD=postgres psql -h localhost -U postgres -d smartstay -c \"SELECT id, name, id_card, phone, role, is_active, is_first_login FROM users;\")",
+      "Bash(PGPASSWORD=postgres psql -h localhost -U postgres -d smartstay -c \"SELECT id, room_number, room_type, base_price, current_price, status, floor FROM rooms ORDER BY room_number;\")",
+      "Bash(PGPASSWORD=postgres psql -h localhost -U postgres -d smartstay -c \"SELECT id, user_id, room_id, status, source, check_in_time, check_out_time, total_amount FROM orders ORDER BY created_at DESC LIMIT 20;\")",
+      "Bash(PGPASSWORD=postgres psql -h localhost -U postgres -d smartstay -c \"SELECT id, room_id, order_id, type, content, assigned_resource, status, ai_generated FROM work_orders;\")",
+      "Bash(PGPASSWORD=postgres psql -h localhost -U postgres -d smartstay -c \"SELECT id, order_id, room_id, item_name, category, amount, quantity, consumed_at FROM consumptions;\")",
+      "WebSearch"
+    ]
+  }
+}

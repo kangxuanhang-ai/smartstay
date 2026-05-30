@@ -5,7 +5,8 @@ from sqlmodel import select, update
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
-from app.models.user import User
+from app.models.guest import Guest
+from app.models.user import Staff
 from app.models.room import Room
 from app.models.order import Order
 from app.schemas.room import RoomResponse, DeviceControl, RoomStatusUpdate
@@ -16,7 +17,7 @@ router = APIRouter(prefix="/api/rooms", tags=["rooms"])
 
 @router.get("/my-room", response_model=RoomResponse)
 async def get_my_room(
-    current_user: User = Depends(require_role("guest")),
+    current_user: Guest = Depends(require_role("guest")),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -36,7 +37,7 @@ async def get_my_room(
 @router.post("/my-room/device")
 async def control_device(
     control: DeviceControl,
-    current_user: User = Depends(require_role("guest")),
+    current_user: Guest = Depends(require_role("guest")),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -63,7 +64,7 @@ async def control_device(
 
 @router.get("/", response_model=list[RoomResponse])
 async def get_all_rooms(
-    current_user: User = Depends(require_role("front_desk", "manager", "admin")),
+    current_user: Staff = Depends(require_role("front_desk", "manager", "admin")),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(Room).order_by(Room.room_number))
@@ -74,7 +75,7 @@ async def get_all_rooms(
 async def update_room_status(
     room_id: str,
     body: RoomStatusUpdate,
-    current_user: User = Depends(require_role("front_desk", "admin")),
+    current_user: Staff = Depends(require_role("front_desk", "admin")),
     db: AsyncSession = Depends(get_db),
 ):
     valid_statuses = {"vacant", "occupied", "dirty", "maintenance"}

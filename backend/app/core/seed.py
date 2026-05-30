@@ -4,15 +4,24 @@ from sqlmodel import select
 
 from app.core.database import async_session
 from app.core.security import get_password_hash
-from app.models.user import User
+from app.models.guest import Guest
+from app.models.user import Staff
 from app.models.room import Room
 from app.models.hotel import HotelInfo, Facility
 
-DEFAULT_USERS = [
+DEFAULT_STAFF = [
     {"id_card": "dianzhang", "phone": "13800000001", "name": "总店长", "role": "manager"},
     {"id_card": "qiantai", "phone": "13800000002", "name": "前台张", "role": "front_desk"},
     {"id_card": "admin", "phone": "13800000003", "name": "管理员", "role": "admin"},
-    {"id_card": "100000000000000101", "phone": "13800000101", "name": "住客李", "role": "guest"},
+    {"id_card": "bj001", "phone": "13800000201", "name": "王阿姨", "role": "front_desk", "staff_type": "housekeeping"},
+    {"id_card": "bj002", "phone": "13800000202", "name": "张阿姨", "role": "front_desk", "staff_type": "housekeeping"},
+    {"id_card": "wx001", "phone": "13800000301", "name": "李师傅", "role": "front_desk", "staff_type": "maintenance"},
+    {"id_card": "wx002", "phone": "13800000302", "name": "赵师傅", "role": "front_desk", "staff_type": "maintenance"},
+]
+
+DEFAULT_GUESTS = [
+    {"id_card": "100000000000000101", "phone": "13800000101", "name": "住客李"},
+    {"id_card": "13042920030603401X", "phone": "13800000102", "name": "康烜航"},
 ]
 
 DEFAULT_ROOMS = [
@@ -29,21 +38,44 @@ DEFAULT_ROOMS = [
 ]
 
 
-async def seed_default_users():
+async def seed_default_staff():
     async with async_session() as db:
-        for u in DEFAULT_USERS:
-            result = await db.execute(select(User).where(User.id_card == u["id_card"]))
+        for s in DEFAULT_STAFF:
+            result = await db.execute(select(Staff).where(Staff.id_card == s["id_card"]))
             if not result.scalar_one_or_none():
-                user = User(
-                    id_card=u["id_card"],
-                    phone=u["phone"],
-                    name=u["name"],
-                    role=u["role"],
+                staff = Staff(
+                    id_card=s["id_card"],
+                    phone=s["phone"],
+                    name=s["name"],
+                    role=s["role"],
+                    staff_type=s.get("staff_type"),
                     hashed_password=get_password_hash("123456"),
                     is_first_login=True,
                 )
-                db.add(user)
+                db.add(staff)
         await db.commit()
+
+
+async def seed_default_guests():
+    async with async_session() as db:
+        for g in DEFAULT_GUESTS:
+            result = await db.execute(select(Guest).where(Guest.id_card == g["id_card"]))
+            if not result.scalar_one_or_none():
+                guest = Guest(
+                    id_card=g["id_card"],
+                    phone=g["phone"],
+                    name=g["name"],
+                    hashed_password=get_password_hash("123456"),
+                    is_first_login=True,
+                )
+                db.add(guest)
+        await db.commit()
+
+
+async def seed_default_users():
+    """向后兼容入口：分别 seed staff 和 guests"""
+    await seed_default_staff()
+    await seed_default_guests()
 
 
 async def seed_default_rooms():

@@ -1,0 +1,70 @@
+{
+  "project": "SmartStay (智宿云)",
+  "last_updated": "2026-05-30",
+  "active_feature": null,
+  "features": [
+    {
+      "id": "F001",
+      "name": "Backend core infrastructure",
+      "status": "done",
+      "spec": "docs/superpowers/specs/2026-05-23-smartstay-design.md",
+      "plan": "docs/superpowers/plans/2026-05-23-smartstay-plan.md",
+      "evidence": "FastAPI server starts, 15 DB tables created, seed data loads, health endpoint returns ok"
+    },
+    {
+      "id": "F002",
+      "name": "B-end React frontend (full)",
+      "status": "done",
+      "spec": "docs/superpowers/specs/2026-05-23-smartstay-design.md",
+      "plan": "docs/superpowers/plans/2026-05-23-smartstay-plan.md",
+      "evidence": "Login, room grid, check-in modal, work order board, manager dashboard, knowledge base, user management, invoices, admin sandbox all functional"
+    },
+    {
+      "id": "F003",
+      "name": "C-end Flutter app (initial)",
+      "status": "done",
+      "spec": "docs/superpowers/specs/2026-05-23-smartstay-design.md",
+      "plan": "docs/superpowers/plans/2026-05-23-smartstay-plan.md",
+      "evidence": "11 pages implemented, BLoC state management, Dio API client, WebSocket, SSE chat, GoRouter routing"
+    },
+    {
+      "id": "F004",
+      "name": "AI engine (LangGraph agent + tools + guard + RAG)",
+      "status": "done",
+      "spec": "docs/superpowers/specs/2026-05-23-smartstay-design.md",
+      "plan": "docs/superpowers/plans/2026-05-23-smartstay-plan.md",
+      "evidence": "LangGraph state graph with 3 branches, 4 tools, security guard, RAG with pgvector, SSE streaming, pricing agent, audit agent"
+    },
+    {
+      "id": "F005",
+      "name": "Users table split (guests + staff)",
+      "status": "done",
+      "spec": "docs/superpowers/specs/2026-05-29-users-split-design.md",
+      "plan": "docs/superpowers/plans/2026-05-29-users-split-plan.md",
+      "evidence": "Guest and Staff models separated, JWT carries user_type, get_current_user resolves from correct table, seed data updated"
+    },
+    {
+      "id": "F006",
+      "name": "C-end navigation redesign",
+      "status": "planned",
+      "spec": "docs/superpowers/specs/2026-05-29-c-end-navigation-redesign-design.md",
+      "plan": "docs/superpowers/plans/2026-05-29-c-end-navigation-redesign-plan.md",
+      "evidence": null,
+      "notes": "9 tasks: LoginBottomSheet, AuthPrompt overlay, page-level auth states, My page, bill detail, bottom nav refactor"
+    }
+  ],
+  "upcoming": [
+    {
+      "id": "F007",
+      "name": "WebSocket real-time room control sync",
+      "status": "idea",
+      "notes": "Push device state changes to other clients in same room"
+    },
+    {
+      "id": "F008",
+      "name": "Multi-session chat history persistence",
+      "status": "idea",
+      "notes": "Chat sessions survive app restart, stored server-side"
+    }
+  ]
+}
