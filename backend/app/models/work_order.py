@@ -1,7 +1,9 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from sqlmodel import Field, SQLModel
+
+from app.core.utils import cst_now
 
 
 class WorkOrder(SQLModel, table=True):
@@ -15,5 +17,5 @@ class WorkOrder(SQLModel, table=True):
     assigned_resource: Optional[str] = Field(default=None, max_length=50)
     status: str = Field(max_length=20, default="submitted")
     ai_generated: bool = Field(default=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=cst_now)
     updated_at: Optional[datetime] = Field(default=None)

@@ -2,6 +2,19 @@
 
 AI-powered hotel management system. Three clients, one FastAPI backend.
 
+## ⚠️ MANDATORY SESSION CHECKLIST — DO THIS FIRST EVERY TIME
+
+Before doing ANY work, execute these steps IN ORDER. No exceptions.
+
+1. **Read `session-handoff.md`** → Know where the last session left off
+2. **Read `feature_list.json`** → Know what's active, what's done, what's next
+3. **If `active_feature` is not null**: Read the spec + plan for that feature, resume work
+4. **If `active_feature` is null**: Ask the user what to work on next
+5. **After completing any task**: Update `feature_list.json` (status + evidence), `progress.md` (log entry), run verification commands
+6. **At end of session**: Update `session-handoff.md` with what was done, what's pending, blockers
+
+**Why this exists**: Without this checklist, the agent skips state files and loses track of progress across sessions.
+
 ## Quick Start
 
 ```bash

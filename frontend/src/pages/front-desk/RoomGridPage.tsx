@@ -159,7 +159,7 @@ function RoomDetailModal({ room, open, onClose, onCheckout }: RoomDetailModalPro
             {order ? (
               <Descriptions size="small" column={2} bordered>
                 <Descriptions.Item label="入住时间">
-                  {order.check_in_time ? new Date(order.check_in_time + 'Z').toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '-'}
+                  {order.check_in_time ? new Date(order.check_in_time).toLocaleString('zh-CN') : '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label="来源">{SOURCE_LABELS[order.source || ''] || order.source || '-'}</Descriptions.Item>
                 <Descriptions.Item label="当前房价">¥{Math.round(room.current_price / 100)}/晚</Descriptions.Item>

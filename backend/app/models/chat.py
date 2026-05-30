@@ -1,8 +1,10 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from sqlmodel import Field, SQLModel, Column
 from sqlalchemy.dialects.postgresql import JSONB
+
+from app.core.utils import cst_now
 
 
 class ChatSession(SQLModel, table=True):
@@ -12,7 +14,7 @@ class ChatSession(SQLModel, table=True):
     order_id: uuid.UUID = Field(foreign_key="orders.id")
     room_id: uuid.UUID = Field(foreign_key="rooms.id")
     status: str = Field(default="active", max_length=20)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=cst_now)
 
 
 class ChatMessage(SQLModel, table=True):
@@ -23,4 +25,4 @@ class ChatMessage(SQLModel, table=True):
     role: str = Field(max_length=20)
     content: str
     tool_calls: Optional[dict] = Field(default=None, sa_column=Column(JSONB))
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=cst_now)

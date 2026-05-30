@@ -6,6 +6,7 @@ from sqlmodel import select, update
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
+from app.core.utils import cst_now, cst_isoformat
 from app.models.guest import Guest
 from app.models.user import Staff
 from app.models.order import Order
@@ -117,8 +118,8 @@ async def get_all_work_orders(
             "assigned_resource": wo.assigned_resource,
             "status": wo.status,
             "ai_generated": wo.ai_generated,
-            "created_at": wo.created_at.isoformat() if wo.created_at else None,
-            "updated_at": wo.updated_at.isoformat() if wo.updated_at else None,
+            "created_at": cst_isoformat(wo.created_at),
+            "updated_at": cst_isoformat(wo.updated_at),
         }
         for wo in orders
     ]
@@ -136,7 +137,7 @@ async def accept_work_order(
         raise HTTPException(status_code=404, detail="Work order not found")
 
     wo.status = "accepted"
-    wo.updated_at = datetime.utcnow()
+    wo.updated_at = cst_now()
     await db.commit()
 
     guest_user_id = await _get_guest_user_id(db, wo.room_id)
@@ -163,7 +164,7 @@ async def assign_work_order(
 
     wo.assigned_resource = body.assigned_resource
     wo.status = "processing"
-    wo.updated_at = datetime.utcnow()
+    wo.updated_at = cst_now()
     await db.commit()
 
     guest_user_id = await _get_guest_user_id(db, wo.room_id)
@@ -188,7 +189,7 @@ async def complete_work_order(
         raise HTTPException(status_code=404, detail="Work order not found")
 
     wo.status = "completed"
-    wo.updated_at = datetime.utcnow()
+    wo.updated_at = cst_now()
     await db.commit()
 
     guest_user_id = await _get_guest_user_id(db, wo.room_id)

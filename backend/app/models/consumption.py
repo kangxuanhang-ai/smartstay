@@ -1,6 +1,8 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from sqlmodel import Field, SQLModel
+
+from app.core.utils import cst_now
 
 
 class Consumption(SQLModel, table=True):
@@ -13,5 +15,5 @@ class Consumption(SQLModel, table=True):
     category: str = Field(max_length=20)
     amount: int
     quantity: int = Field(default=1)
-    consumed_at: datetime = Field(default_factory=datetime.utcnow)
+    consumed_at: datetime = Field(default_factory=cst_now)
     created_by: str = Field(default="guest", max_length=20)

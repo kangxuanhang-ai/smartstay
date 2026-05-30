@@ -1,7 +1,8 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
 from app.core.database import async_session
+from app.core.utils import cst_now
 from app.models.security_log import AISecurityLog
 from app.models.room import Room
 
@@ -83,7 +84,7 @@ async def _log_violation(user_id: str, user_role: str, tool_name: str, tool_para
                 tool_params=tool_params,
                 violation_type=violation_type,
                 user_input=user_input,
-                intercepted_at=datetime.now(timezone.utc),
+                intercepted_at=cst_now(),
             )
             db.add(log_entry)
             await db.commit()

@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from langchain_deepseek import ChatDeepSeek
 from app.core.config import settings
 from app.core.database import async_session
+from app.core.utils import cst_now
 from app.models.ai_log import AuditReport
 from app.models.work_order import WorkOrder
 from app.models.chat import ChatMessage
@@ -18,8 +19,8 @@ async def generate_audit_report() -> dict:
     async with async_session() as db:
         from sqlmodel import select, func
 
-        yesterday = datetime.utcnow().date() - timedelta(days=1)
-        yesterday_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
+        yesterday = cst_now().date() - timedelta(days=1)
+        yesterday_start = cst_now().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
         yesterday_end = yesterday_start + timedelta(days=1)
 
         # 工单耗时统计
@@ -82,7 +83,7 @@ async def generate_audit_report() -> dict:
             date=str(yesterday),
             content={"summary": parsed.get("summary", "")},
             anomalies=parsed.get("anomalies", []),
-            generated_at=datetime.utcnow(),
+            generated_at=cst_now(),
         )
         db.add(report)
         await db.commit()

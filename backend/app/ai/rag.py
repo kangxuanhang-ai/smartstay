@@ -6,6 +6,7 @@ from typing import Optional
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.core.database import async_session
+from app.core.utils import cst_now, cst_isoformat
 from app.models.rag import RAGDocument, RAGEmbedding
 
 logger = logging.getLogger(__name__)
@@ -48,8 +49,8 @@ async def process_and_store(title: str, file_name: str, content: str, uploaded_b
             content=content,
             chunks=len(chunks),
             uploaded_by=uploaded_by,
-            uploaded_at=datetime.utcnow(),
-            vectorized_at=datetime.utcnow(),
+            uploaded_at=cst_now(),
+            vectorized_at=cst_now(),
         )
         db.add(doc)
         await db.commit()
@@ -103,8 +104,8 @@ async def get_all_documents():
                 "title": d.title,
                 "file_name": d.file_name,
                 "chunks": d.chunks,
-                "uploaded_at": d.uploaded_at.isoformat() if d.uploaded_at else None,
-                "vectorized_at": d.vectorized_at.isoformat() if d.vectorized_at else None,
+                "uploaded_at": cst_isoformat(d.uploaded_at),
+                "vectorized_at": cst_isoformat(d.vectorized_at),
             }
             for d in docs
         ]

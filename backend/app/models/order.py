@@ -1,7 +1,9 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from sqlmodel import Field, SQLModel
+
+from app.core.utils import cst_now
 
 
 class Order(SQLModel, table=True):
@@ -15,4 +17,4 @@ class Order(SQLModel, table=True):
     check_out_time: Optional[datetime] = Field(default=None)
     total_amount: int = Field(default=0)
     source: str = Field(max_length=20, default="self_app")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=cst_now)

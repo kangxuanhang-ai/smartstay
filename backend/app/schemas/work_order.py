@@ -3,6 +3,8 @@ from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, field_serializer
 
+from app.core.utils import cst_isoformat
+
 
 class WorkOrderCreate(BaseModel):
     room_id: str
@@ -31,3 +33,7 @@ class WorkOrderResponse(BaseModel):
     @field_serializer("id", "room_id", "order_id")
     def serialize_uuid(self, value: uuid.UUID) -> str:
         return str(value)
+
+    @field_serializer("created_at", "updated_at")
+    def serialize_datetime(self, value: Optional[datetime]) -> Optional[str]:
+        return cst_isoformat(value)

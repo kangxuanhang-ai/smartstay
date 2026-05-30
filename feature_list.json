@@ -51,6 +51,12 @@
       "plan": "docs/superpowers/plans/2026-05-29-c-end-navigation-redesign-plan.md",
       "evidence": null,
       "notes": "9 tasks: LoginBottomSheet, AuthPrompt overlay, page-level auth states, My page, bill detail, bottom nav refactor"
+    },
+    {
+      "id": "F009",
+      "name": "UTC → 中国标准时间 全局替换",
+      "status": "done",
+      "evidence": "新建 utils.py (cst_now/cst_isoformat), 修改 20 个文件共 30+ 处, 后端序列化加 +08:00 后缀, Flutter 加 .toLocal(), 三端编译通过"
     }
   ],
   "upcoming": [

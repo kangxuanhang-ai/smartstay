@@ -1,8 +1,10 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Optional
 from sqlmodel import Field, SQLModel, Column
 from pgvector.sqlalchemy import Vector
+
+from app.core.utils import cst_now
 
 
 class RAGDocument(SQLModel, table=True):
@@ -14,7 +16,7 @@ class RAGDocument(SQLModel, table=True):
     content: str
     chunks: int = Field(default=0)
     uploaded_by: Optional[uuid.UUID] = Field(default=None, foreign_key="staff.id")
-    uploaded_at: datetime = Field(default_factory=datetime.utcnow)
+    uploaded_at: datetime = Field(default_factory=cst_now)
     vectorized_at: Optional[datetime] = Field(default=None)
 
 

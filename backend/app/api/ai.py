@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from langchain_core.messages import HumanMessage, AIMessage
+from app.core.utils import cst_now, cst_isoformat
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
@@ -167,7 +168,7 @@ async def get_chat_history(
             "role": m.role,
             "content": m.content,
             "tool_calls": m.tool_calls,
-            "created_at": m.created_at.isoformat() if m.created_at else None,
+            "created_at": cst_isoformat(m.created_at),
         }
         for m in messages
     ]
@@ -189,7 +190,7 @@ async def get_pricing_logs(
             "suggested_price": log.suggested_price,
             "status": log.status,
             "suggested_by": log.suggested_by,
-            "created_at": log.created_at.isoformat() if log.created_at else None,
+            "created_at": cst_isoformat(log.created_at),
         }
         for log in logs
     ]
@@ -210,7 +211,7 @@ async def approve_pricing(
 
     log.status = "approved"
     log.confirmed_by = current_user.id
-    log.decided_at = datetime.utcnow()
+    log.decided_at = cst_now()
 
     from sqlmodel import update
     await db.execute(
@@ -233,7 +234,7 @@ async def reject_pricing(
 
     log.status = "rejected"
     log.confirmed_by = current_user.id
-    log.decided_at = datetime.utcnow()
+    log.decided_at = cst_now()
     await db.commit()
     return {"message": "已拒绝调价"}
 

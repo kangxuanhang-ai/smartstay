@@ -3,6 +3,8 @@ from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, field_serializer
 
+from app.core.utils import cst_isoformat
+
 
 class CheckInRequest(BaseModel):
     id_card: str
@@ -18,6 +20,10 @@ class BillingLine(BaseModel):
     amount: int
     quantity: int
     consumed_at: datetime
+
+    @field_serializer("consumed_at")
+    def serialize_consumed_at(self, value: datetime) -> str:
+        return cst_isoformat(value)
 
 
 class BillResponse(BaseModel):
@@ -54,3 +60,7 @@ class OrderResponse(BaseModel):
     @field_serializer("id", "user_id", "room_id")
     def serialize_uuid(self, value: uuid.UUID) -> str:
         return str(value)
+
+    @field_serializer("check_in_time", "check_out_time")
+    def serialize_datetime(self, value: Optional[datetime]) -> Optional[str]:
+        return cst_isoformat(value)

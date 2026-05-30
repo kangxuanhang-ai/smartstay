@@ -1,8 +1,10 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from sqlmodel import Field, SQLModel, Column
 from sqlalchemy.dialects.postgresql import JSONB
+
+from app.core.utils import cst_now
 
 
 class AISecurityLog(SQLModel, table=True):
@@ -17,4 +19,4 @@ class AISecurityLog(SQLModel, table=True):
     tool_params: Optional[dict] = Field(default=None, sa_column=Column(JSONB))
     violation_type: str = Field(max_length=50)
     user_input: Optional[str] = Field(default=None)
-    intercepted_at: datetime = Field(default_factory=datetime.utcnow)
+    intercepted_at: datetime = Field(default_factory=cst_now)

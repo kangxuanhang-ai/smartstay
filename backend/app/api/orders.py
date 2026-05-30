@@ -7,6 +7,7 @@ from sqlmodel import select, update
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
 from app.core.security import get_password_hash
+from app.core.utils import cst_now, cst_isoformat
 from app.models.guest import Guest
 from app.models.user import Staff
 from app.models.room import Room
@@ -58,7 +59,7 @@ async def check_in(
             status="checked_in",
             source=req.source,
             total_amount=room.current_price,
-            check_in_time=datetime.utcnow(),
+            check_in_time=cst_now(),
         )
         db.add(order)
         room.status = "occupied"
@@ -143,7 +144,7 @@ async def get_active_order_by_room(
         "user_id": str(order.user_id),
         "status": order.status,
         "source": order.source,
-        "check_in_time": order.check_in_time.isoformat() if order.check_in_time else None,
+        "check_in_time": cst_isoformat(order.check_in_time),
         "guest_name": guest.name if guest else None,
         "guest_id_card": guest.id_card if guest else None,
         "guest_phone": guest.phone if guest else None,
@@ -165,7 +166,7 @@ async def checkout(
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Order not in checked_in status")
 
         order.status = "checked_out"
-        order.check_out_time = datetime.utcnow()
+        order.check_out_time = cst_now()
 
         await db.execute(
             update(Room).where(Room.id == order.room_id).values(status="dirty")

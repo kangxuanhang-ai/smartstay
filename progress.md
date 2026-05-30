@@ -48,6 +48,17 @@
 - `get_current_user` dependency resolves from correct table
 - All API routes, seed data, and frontend updated
 
+### F009 — UTC → 中国标准时间 (2026-05-30)
+- 新建 `backend/app/core/utils.py`: `cst_now()` + `cst_isoformat()`
+- 12 个模型文件 `default_factory=datetime.utcnow` → `cst_now()`
+- 6 个 API 文件 `datetime.utcnow()` → `cst_now()`
+- 4 个 AI 模块 `datetime.utcnow()` → `cst_now()`
+- 1 个审计任务 `datetime.utcnow()` → `cst_now()`
+- 2 个 schema 文件加 `field_serializer` 输出 `+08:00` 后缀
+- 所有 `.isoformat()` 手动序列化 → `cst_isoformat()`
+- Flutter C 端 `DateTime.tryParse()` 加 `.toLocal()`
+- B 端 `RoomGridPage` 去掉 `'Z'` 后缀
+
 ## What's Next
 
 ### F006 — C-end Navigation Redesign (planned)

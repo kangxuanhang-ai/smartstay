@@ -2,6 +2,8 @@ import uuid
 from datetime import datetime
 from sqlmodel import Field, SQLModel
 
+from app.core.utils import cst_now
+
 
 class Guest(SQLModel, table=True):
     __tablename__ = "guests"
@@ -13,4 +15,4 @@ class Guest(SQLModel, table=True):
     hashed_password: str = Field(max_length=255)
     is_first_login: bool = Field(default=True)
     is_active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=cst_now)

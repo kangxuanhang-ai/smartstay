@@ -1,6 +1,6 @@
 import uuid
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 from langchain_core.tools import tool
 from langchain_deepseek import ChatDeepSeek
@@ -8,6 +8,7 @@ from sqlmodel import select, func, update
 
 from app.core.config import settings
 from app.core.database import async_session
+from app.core.utils import cst_now
 from app.models.work_order import WorkOrder
 from app.models.room import Room
 
@@ -128,7 +129,7 @@ async def create_work_order_tool(type: str, content: str, room_id: str = "") -> 
                 content=content,
                 status="submitted",
                 ai_generated=True,
-                created_at=datetime.utcnow(),
+                created_at=cst_now(),
             )
             db.add(wo)
             await db.commit()

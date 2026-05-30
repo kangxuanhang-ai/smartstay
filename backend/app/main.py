@@ -26,7 +26,8 @@ async def lifespan(app: FastAPI):
 
     from app.tasks.audit import generate_audit_report
     scheduler.add_job(generate_audit_report, 'cron', hour=4, minute=0, id='daily_audit', replace_existing=True)
-    scheduler.add_job(generate_audit_report, 'date', run_date=datetime.now() + timedelta(seconds=30), id='initial_audit')
+    from app.core.utils import cst_now
+    scheduler.add_job(generate_audit_report, 'date', run_date=cst_now() + timedelta(seconds=30), id='initial_audit')
     scheduler.start()
 
     yield
