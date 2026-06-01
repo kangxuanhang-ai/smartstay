@@ -24,7 +24,7 @@ export default function UserManagementPage() {
     try {
       const [{ data: staff }, { data: guests }] = await Promise.all([
         apiClient.get('/api/admin/users?role=front_desk'),
-        apiClient.get('/api/admin/users?role=guest'),
+        apiClient.get('/api/admin/users?type=guest'),
       ])
       const { data: mgr } = await apiClient.get('/api/admin/users?role=manager')
       const { data: adm } = await apiClient.get('/api/admin/users?role=admin')

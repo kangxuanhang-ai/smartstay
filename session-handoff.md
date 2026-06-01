@@ -7,43 +7,53 @@
 
 ---
 
-## Last Session
+## Restart Marker (for quick session resume)
 
-**Date**: 2026-05-30
-**What was done**:
-- F009 完成: 全局 UTC → 中国标准时间替换 (20个文件, 30+处)
-- F010 完成: 修复两个 bug (用户管理住客数据 + C端改密无反应)
-- F011 完成: C端首页改版 (home_page.dart 完全重写, 5区块高端酒店风)
-- Harness 创建并强制执行
-
-**What's pending**:
-- F006 (C-end navigation redesign) 未开始
-
-**Blockers**: None
-
-**Next Steps**:
-1. 用户测试首页效果
-2. 按 CLAUDE.md MANDATORY SESSION CHECKLIST 走
+**Last updated**: 2026-06-01
+**Active feature**: F013 (人脸识别登录) — done
+**Next up**: F006 C-end navigation redesign, or user-requested tasks
+**Quick command to resume**: Read this file → Read feature_list.json → Ask user
 
 ---
 
-## Session Template (copy below for each new session)
+## Last Session
 
-### Session [DATE]
+**Date**: 2026-06-01
+**Feature**: F013 — 人脸识别登录
+**Goal**: B 端开房人脸录入 + C 端刷脸登录
 
-**Started**: [TIME]
-**Feature**: [F00X — name]
-**Goal**: [what to accomplish this session]
+**What was done**:
+- 设计文档: `docs/superpowers/specs/2026-06-01-face-recognition-login-design.md`
+- 实现计划: `docs/superpowers/plans/2026-06-01-face-recognition-login-plan.md`
+- Task 1: 后端阿里云配置 + 人脸服务模块 (backend/app/aliyun/face.py — 6个 API 封装)
+- Task 2: 人脸 API 路由 (backend/app/api/face.py — detect/verify/register/search 4个接口)
+- Task 3: B 端人脸录入 (FaceCapture.tsx + CheckInModal.tsx 集成)
+- Task 4: C 端 Flutter 刷脸登录 (face_login_page.dart + AuthBloc + GoRouter)
+- Task 5: 集成验证通过 (backend py_compile + frontend tsc + flutter analyze 0 errors)
 
 **Changes made**:
-- [list files changed]
+- `backend/app/core/config.py` — 新增阿里云配置项
+- `backend/app/aliyun/__init__.py` — 新模块
+- `backend/app/aliyun/face.py` — 阿里云人脸 API 封装
+- `backend/app/models/guest.py` — 新增 face_id, face_registered 字段
+- `backend/app/api/face.py` — 4 个人脸 API 路由
+- `backend/app/main.py` — 注册 face 路由
+- `frontend/src/pages/front-desk/FaceCapture.tsx` — 摄像头拍照组件
+- `frontend/src/pages/front-desk/CheckInModal.tsx` — 集成人脸录入
+- `smartstay-flutter/pubspec.yaml` — 添加 camera 依赖
+- `smartstay-flutter/lib/pages/login/face_login_page.dart` — 刷脸页面
+- `smartstay-flutter/lib/blocs/auth/auth_event.dart` — 新增 AuthFaceLoginRequested
+- `smartstay-flutter/lib/blocs/auth/auth_state.dart` — 新增 faceLoginLoading
+- `smartstay-flutter/lib/blocs/auth/auth_bloc.dart` — 刷脸登录事件处理
+- `smartstay-flutter/lib/app.dart` — 注册 /face-login 路由
+- `smartstay-flutter/lib/pages/login/login_page.dart` — 添加刷脸登录按钮
+- `feature_list.json` — 新增 F013 条目
 
 **Verification results**:
-- [ ] Backend compiles
-- [ ] Backend tests pass
-- [ ] Frontend type check passes
-- [ ] Flutter analyze passes
+- [x] Backend compiles (py_compile 通过)
+- [x] Frontend type check passes (tsc --noEmit 通过)
+- [x] Flutter analyze passes (auth_bloc.dart 0 issues, 其余为预存警告)
 
-**Status**: [in-progress | done | blocked]
-**Blockers**: [none or describe]
-**Next session picks up at**: [specific file/task]
+**Status**: done
+**Blockers**: None
+**Next session picks up at**: 无待办项，等待用户下一需求

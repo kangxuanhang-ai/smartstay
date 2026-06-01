@@ -89,6 +89,14 @@ async def action_node(state: AgentState):
             "- create_work_order_tool: 创建送物或报修工单\n"
             "- query_knowledge_tool: 检索酒店知识库\n"
             "- modify_room_price_tool: 修改房价（仅店长可用）\n\n"
+            "意图推断规则：\n"
+            "- 「我回来了/我回家了/回来了」→ 开灯、开窗帘、调空调到舒适温度\n"
+            "- 「我要睡了/晚安/睡觉」→ 关灯、关窗帘、空调调到26°C\n"
+            "- 「太暗了/开灯/灯打开」→ 开灯（value=true）\n"
+            "- 「太亮了/关灯/灯关了」→ 关灯（value=false）\n"
+            "- 「热/冷」→ 调整空调温度或切换制冷制热\n"
+            "- device参数必须是: living_light/bedroom_light/bedside_light/curtain/ac_temp/ac_mode\n"
+            "- 灯光value用bool（true=开，false=关），窗帘用int（0-100），温度用int（16-30）\n\n"
             "根据住客请求选择合适的工具并立即执行。"
         ))
         resp = await llm_with_tools.ainvoke([system_msg, HumanMessage(content=user_text)])
