@@ -11,6 +11,12 @@ class Settings(BaseSettings):
     DEEPSEEK_API_KEY: str = ""
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
 
+    # 阿里云配置
+    ALIYUN_ACCESS_KEY_ID: str = ""
+    ALIYUN_ACCESS_KEY_SECRET: str = ""
+    ALIYUN_REGION_ID: str = "cn-shanghai"
+    ALIYUN_FACE_DB_NAME: str = "smartstay_faces"
+
     class Config:
         env_file = ".env"
 
