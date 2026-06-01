@@ -16,3 +16,5 @@ class Guest(SQLModel, table=True):
     is_first_login: bool = Field(default=True)
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=cst_now)
+    face_id: Optional[str] = Field(default=None, max_length=64)
+    face_registered: bool = Field(default=False)

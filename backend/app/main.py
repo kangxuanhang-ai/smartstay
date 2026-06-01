@@ -10,6 +10,7 @@ from app.core.seed import seed_default_users, seed_default_rooms, seed_hotel_inf
 from app.api import auth, rooms, orders, work_orders, admin, consumptions
 from app.api import hotel
 from app.api.ai import router as ai_router
+from app.api.face import router as face_router
 from app.api.rag import router as rag_router
 from app.ws.manager import manager
 
@@ -62,6 +63,7 @@ app.include_router(consumptions.router)
 app.include_router(hotel.router)
 app.include_router(ai_router)
 app.include_router(rag_router)
+app.include_router(face_router)
 
 
 @app.websocket("/ws")
