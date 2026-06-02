@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Card, Tag, Spin } from 'antd'
+import { Card, Tag, Spin, message } from 'antd'
 import { WarningOutlined, BulbOutlined } from '@ant-design/icons'
 import apiClient from '../../api/client'
 
@@ -27,7 +27,7 @@ export default function AIAuditPage() {
     apiClient.get('/api/admin/audit-reports')
       .then(({ data }) => {
         if (data.length > 0) setReport(data[0])
-      }).catch(() => {})
+      }).catch(() => message.error('获取审计报告失败'))
       .finally(() => setLoading(false))
   }, [])
 

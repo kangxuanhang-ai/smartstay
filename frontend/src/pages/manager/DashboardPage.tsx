@@ -1,4 +1,4 @@
-import { Card, Statistic } from 'antd'
+import { Card, Statistic, message } from 'antd'
 import { ArrowUpOutlined } from '@ant-design/icons'
 import ReactECharts from 'echarts-for-react'
 import { useState, useEffect } from 'react'
@@ -29,13 +29,13 @@ export default function DashboardPage() {
   const [trend, setTrend] = useState<number[]>([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
   useEffect(() => {
-    apiClient.get('/api/admin/dashboard').then(({ data }) => setStats(data)).catch(() => {})
+    apiClient.get('/api/admin/dashboard').then(({ data }) => setStats(data)).catch(() => message.error('获取仪表盘数据失败'))
     apiClient.get('/api/admin/channel-stats').then(({ data }) => {
       if (data.channels && data.channels.length > 0) setChannels(data.channels)
-    }).catch(() => {})
+    }).catch(() => message.error('获取渠道数据失败'))
     apiClient.get('/api/admin/hourly-revenue').then(({ data }) => {
       if (data.revenue_trend) setTrend(data.revenue_trend)
-    }).catch(() => {})
+    }).catch(() => message.error('获取收入数据失败'))
   }, [])
 
   const barOption = {

@@ -28,7 +28,7 @@ export default function AdminPage() {
     }
   }
 
-  useEffect(() => { fetchLogs().catch(() => {}) }, [])
+  useEffect(() => { fetchLogs().catch(() => message.error('获取安全日志失败')) }, [])
 
   const handleSimulate = async (type: string) => {
     try {

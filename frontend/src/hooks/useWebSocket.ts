@@ -32,7 +32,9 @@ function ensureConnection(token: string) {
           handler(data)
         }
       }
-    } catch {}
+    } catch {
+      console.warn('WebSocket message parse error')
+    }
   }
 
   ws.onclose = () => {

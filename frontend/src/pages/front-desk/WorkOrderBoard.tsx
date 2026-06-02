@@ -32,13 +32,13 @@ export default function WorkOrderBoard() {
   const [assigningId, setAssigningId] = useState<string | null>(null)
   const ws = useWebSocket()
 
-  const fetchOrders = () => apiClient.get('/api/work-orders/').then(({ data }) => setOrders(data)).catch(() => {})
+  const fetchOrders = () => apiClient.get('/api/work-orders/').then(({ data }) => setOrders(data)).catch(() => message.error('获取工单列表失败'))
 
   const fetchStaff = (workOrderType?: string) => {
     const params = workOrderType ? `?work_order_type=${workOrderType}` : ''
     apiClient.get(`/api/work-orders/staff${params}`)
       .then(({ data }) => setStaffList(data))
-      .catch(() => {})
+      .catch(() => message.error('获取员工列表失败'))
   }
 
   useEffect(() => {

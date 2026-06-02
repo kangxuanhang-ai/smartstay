@@ -42,7 +42,7 @@ export default function UserManagementPage() {
     }
   }
 
-  useEffect(() => { fetchUsers().catch(() => {}) }, [])
+  useEffect(() => { fetchUsers().catch(() => message.error('获取用户列表失败')) }, [])
 
   const handleCreateUser = async () => {
     const values = await form.validateFields()

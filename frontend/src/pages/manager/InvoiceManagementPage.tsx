@@ -35,7 +35,7 @@ export default function InvoiceManagementPage() {
     }
   }
 
-  useEffect(() => { fetchInvoices().catch(() => {}) }, [])
+  useEffect(() => { fetchInvoices().catch(() => message.error('获取发票列表失败')) }, [])
 
   const handleMarkIssued = async (id: string) => {
     try {
