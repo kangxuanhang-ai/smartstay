@@ -250,6 +250,8 @@ export default function RoomGridPage() {
   const [rooms, setRooms] = useState<Room[]>([])
   const [checkInRoom, setCheckInRoom] = useState<string | null>(null)
   const [detailRoom, setDetailRoom] = useState<Room | null>(null)
+  const [infoModalOpen, setInfoModalOpen] = useState(false)
+  const [infoRoom, setInfoRoom] = useState<Room | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const ws = useWebSocket()
 
@@ -349,7 +351,12 @@ export default function RoomGridPage() {
               style={{ borderColor: STATUS_COLORS[room.status] || '#d9d9d9' }}
               styles={{ body: { padding: '16px 12px', textAlign: 'center' } }}
               onClick={() => {
-                if (room.status === 'occupied') setDetailRoom(room)
+                if (room.status === 'occupied') {
+                  setDetailRoom(room)
+                } else {
+                  setInfoRoom(room)
+                  setInfoModalOpen(true)
+                }
               }}
             >
               <div className="!flex !items-center !justify-center !gap-1.5 !mb-2 !truncate">
@@ -385,6 +392,36 @@ export default function RoomGridPage() {
           onCheckout={handleCheckout}
         />
       )}
+
+      <Modal
+        title="房间信息"
+        open={infoModalOpen}
+        onCancel={() => setInfoModalOpen(false)}
+        footer={[
+          infoRoom?.status === 'vacant' && (
+            <Button key="checkin" type="primary" onClick={() => {
+              setInfoModalOpen(false)
+              setCheckInRoom(infoRoom.id)
+            }}>
+              快捷开房
+            </Button>
+          ),
+          <Button key="close" onClick={() => setInfoModalOpen(false)}>关闭</Button>,
+        ].filter(Boolean)}
+      >
+        {infoRoom && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div><strong>房间号：</strong>{infoRoom.room_number}</div>
+            <div><strong>房型：</strong>{ROOM_TYPE_LABELS[infoRoom.room_type] || infoRoom.room_type}</div>
+            <div><strong>状态：</strong>
+              <Tag color={STATUS_COLORS[infoRoom.status]}>
+                {STATUS_LABELS[infoRoom.status]}
+              </Tag>
+            </div>
+            <div><strong>价格：</strong>¥{(infoRoom.current_price / 100).toFixed(2)}/晚</div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
