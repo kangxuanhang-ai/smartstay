@@ -142,6 +142,7 @@ async def create_alipay_order(
 
     alipay_request = AlipayTradePagePayRequest(biz_model=model)
     alipay_request.notify_url = settings.ALIPAY_NOTIFY_URL
+    alipay_request.return_url = settings.ALIPAY_RETURN_URL
 
     pay_url = alipay_client.page_execute(alipay_request, http_method="GET")
     return {"pay_url": pay_url, "amount": model.total_amount, "order_id": str(order.id)}

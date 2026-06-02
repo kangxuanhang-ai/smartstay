@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     ALIPAY_PUBLIC_KEY: str = ""
     ALIPAY_GATEWAY_URL: str = "https://openapi-sandbox.dl.alipaydev.com/gateway.do"
     ALIPAY_NOTIFY_URL: str = "http://localhost:8000/api/alipay/notify"
+    ALIPAY_RETURN_URL: str = "http://localhost:5173/front-desk/rooms"
 
     class Config:
         env_file = ".env"
