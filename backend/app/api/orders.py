@@ -20,6 +20,20 @@ from app.ws.manager import manager
 router = APIRouter(prefix="/api/orders", tags=["orders"])
 
 
+async def get_bill_total(db: AsyncSession, order_id: uuid.UUID) -> int:
+    """Calculate grand total for an order (room_rate + consumptions) in fen."""
+    result = await db.execute(select(Order).where(Order.id == order_id))
+    order = result.scalar_one_or_none()
+    if not order:
+        return 0
+
+    cons_result = await db.execute(select(Consumption).where(Consumption.order_id == order_id))
+    consumptions = cons_result.scalars().all()
+    consumption_total = sum(c.amount * c.quantity for c in consumptions)
+
+    return order.total_amount + consumption_total
+
+
 @router.post("/checkin")
 async def check_in(
     req: CheckInRequest,

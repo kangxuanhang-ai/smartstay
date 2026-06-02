@@ -17,6 +17,13 @@ class Settings(BaseSettings):
     ALIYUN_REGION_ID: str = "cn-shanghai"
     ALIYUN_FACE_DB_NAME: str = "smartstay_faces"
 
+    # 支付宝沙箱配置
+    ALIPAY_APP_ID: str = ""
+    ALIPAY_PRIVATE_KEY: str = ""
+    ALIPAY_PUBLIC_KEY: str = ""
+    ALIPAY_GATEWAY_URL: str = "https://openapi-sandbox.dl.alipaydev.com/gateway.do"
+    ALIPAY_NOTIFY_URL: str = "http://localhost:8000/api/alipay/notify"
+
     class Config:
         env_file = ".env"
 
