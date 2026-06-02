@@ -6,7 +6,8 @@ from sqlalchemy import pool
 from alembic import context
 from sqlmodel import SQLModel
 
-from app.models.user import User
+from app.models.guest import Guest
+from app.models.user import Staff
 from app.models.room import Room
 from app.models.order import Order
 from app.models.work_order import WorkOrder

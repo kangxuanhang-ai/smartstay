@@ -2,6 +2,7 @@ from datetime import datetime
 from langchain_deepseek import ChatDeepSeek
 from app.core.config import settings
 from app.core.database import async_session
+from app.core.utils import cst_now
 from app.models.ai_log import AIPricingLog
 from app.models.room import Room
 
@@ -55,7 +56,7 @@ async def trigger_pricing_agent(room_type: str, trigger_reason: str) -> dict:
             suggested_price=suggested_cents,
             status="pending",
             suggested_by="AI · 定价Agent",
-            created_at=datetime.utcnow(),
+            created_at=cst_now(),
         )
         db.add(log)
         await db.commit()

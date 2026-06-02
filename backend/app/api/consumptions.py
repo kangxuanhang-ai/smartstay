@@ -6,7 +6,8 @@ from sqlmodel import select
 
 from app.core.database import get_db
 from app.core.deps import require_role
-from app.models.user import User
+from app.core.utils import cst_now, cst_isoformat
+from app.models.user import Staff
 from app.models.consumption import Consumption
 from app.schemas.consumption import ConsumptionCreate, ConsumptionResponse
 
@@ -16,7 +17,7 @@ router = APIRouter(prefix="/api/consumptions", tags=["consumptions"])
 @router.post("/", response_model=ConsumptionResponse)
 async def create_consumption(
     req: ConsumptionCreate,
-    current_user: User = Depends(require_role("front_desk")),
+    current_user: Staff = Depends(require_role("front_desk")),
     db: AsyncSession = Depends(get_db),
 ):
     c = Consumption(
@@ -27,7 +28,7 @@ async def create_consumption(
         amount=req.amount,
         quantity=req.quantity,
         created_by="front_desk",
-        consumed_at=datetime.utcnow(),
+        consumed_at=cst_now(),
     )
     db.add(c)
     await db.commit()
@@ -40,7 +41,7 @@ async def create_consumption(
         category=c.category,
         amount=c.amount,
         quantity=c.quantity,
-        consumed_at=c.consumed_at.isoformat() if c.consumed_at else None,
+        consumed_at=cst_isoformat(c.consumed_at),
         created_by=c.created_by,
     )
 
@@ -48,7 +49,7 @@ async def create_consumption(
 @router.get("/{order_id}", response_model=list[ConsumptionResponse])
 async def get_order_consumptions(
     order_id: str,
-    current_user: User = Depends(require_role("front_desk", "manager")),
+    current_user: Staff = Depends(require_role("front_desk", "manager")),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -64,7 +65,7 @@ async def get_order_consumptions(
             category=c.category,
             amount=c.amount,
             quantity=c.quantity,
-            consumed_at=c.consumed_at.isoformat() if c.consumed_at else None,
+            consumed_at=cst_isoformat(c.consumed_at),
             created_by=c.created_by,
         )
         for c in consumptions

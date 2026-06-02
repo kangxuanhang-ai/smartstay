@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
-from app.models.user import User
+from app.models.user import Staff
 from app.ai.rag import process_and_store, get_all_documents, delete_document
 
 router = APIRouter(prefix="/api/rag", tags=["rag"])
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/rag", tags=["rag"])
 async def upload_knowledge(
     file: UploadFile = File(...),
     title: str = Form(""),
-    current_user: User = Depends(require_role("manager")),
+    current_user: Staff = Depends(require_role("manager")),
 ):
     """B端店长上传 Markdown 知识库文档"""
     if not file.filename or not file.filename.endswith(".md"):
@@ -38,7 +38,7 @@ async def upload_knowledge(
 
 @router.get("/documents")
 async def list_documents(
-    current_user: User = Depends(require_role("manager")),
+    current_user: Staff = Depends(require_role("manager")),
 ):
     """获取所有知识库文档列表"""
     return await get_all_documents()
@@ -47,7 +47,7 @@ async def list_documents(
 @router.delete("/documents/{doc_id}")
 async def remove_document(
     doc_id: str,
-    current_user: User = Depends(require_role("manager")),
+    current_user: Staff = Depends(require_role("manager")),
 ):
     """删除知识库文档及其所有关联 embeddings"""
     return await delete_document(doc_id)

@@ -1,0 +1,177 @@
+{
+  "project": "SmartStay (智宿云)",
+  "last_updated": "2026-06-01",
+  "active_feature": null,
+  "features": [
+    {
+      "id": "F001",
+      "name": "Backend core infrastructure",
+      "description": "FastAPI server with 15 SQLModel tables, JWT auth, WebSocket manager, seed data, and ~40 API endpoints",
+      "status": "done",
+      "dependencies": [],
+      "spec": "docs/superpowers/specs/2026-05-23-smartstay-design.md",
+      "plan": "docs/superpowers/plans/2026-05-23-smartstay-plan.md",
+      "evidence": "FastAPI server starts, 15 DB tables created, seed data loads, health endpoint returns ok"
+    },
+    {
+      "id": "F002",
+      "name": "B-end React frontend (full)",
+      "description": "React 19 + Ant Design 6 frontend with login, room grid, check-in, work orders, manager dashboard, knowledge base, user management, invoices, admin sandbox",
+      "status": "done",
+      "dependencies": ["F001"],
+      "spec": "docs/superpowers/specs/2026-05-23-smartstay-design.md",
+      "plan": "docs/superpowers/plans/2026-05-23-smartstay-plan.md",
+      "evidence": "Login, room grid, check-in modal, work order board, manager dashboard, knowledge base, user management, invoices, admin sandbox all functional"
+    },
+    {
+      "id": "F003",
+      "name": "C-end Flutter app (initial)",
+      "description": "Flutter 3.35+ guest app with 11 pages, BLoC state management, Dio API client, WebSocket, SSE chat, GoRouter routing",
+      "status": "done",
+      "dependencies": ["F001"],
+      "spec": "docs/superpowers/specs/2026-05-23-smartstay-design.md",
+      "plan": "docs/superpowers/plans/2026-05-23-smartstay-plan.md",
+      "evidence": "11 pages implemented, BLoC state management, Dio API client, WebSocket, SSE chat, GoRouter routing"
+    },
+    {
+      "id": "F004",
+      "name": "AI engine (LangGraph agent + tools + guard + RAG)",
+      "description": "LangGraph state graph with classify→chat/knowledge/action branches, 4 tools, security guard, RAG with pgvector, SSE streaming, pricing agent, audit agent",
+      "status": "done",
+      "dependencies": ["F001"],
+      "spec": "docs/superpowers/specs/2026-05-23-smartstay-design.md",
+      "plan": "docs/superpowers/plans/2026-05-23-smartstay-plan.md",
+      "evidence": "LangGraph state graph with 3 branches, 4 tools, security guard, RAG with pgvector, SSE streaming, pricing agent, audit agent"
+    },
+    {
+      "id": "F005",
+      "name": "Users table split (guests + staff)",
+      "description": "Split users table into guests + staff, JWT carries user_type claim, get_current_user resolves from correct table, seed data updated",
+      "status": "done",
+      "dependencies": ["F001"],
+      "spec": "docs/superpowers/specs/2026-05-29-users-split-design.md",
+      "plan": "docs/superpowers/plans/2026-05-29-users-split-plan.md",
+      "evidence": "Guest and Staff models separated, JWT carries user_type, get_current_user resolves from correct table, seed data updated"
+    },
+    {
+      "id": "F006",
+      "name": "C-end navigation redesign",
+      "description": "9 tasks: LoginBottomSheet, AuthPrompt overlay, page-level auth states, My page, bill detail, bottom nav refactor",
+      "status": "planned",
+      "dependencies": ["F003"],
+      "spec": "docs/superpowers/specs/2026-05-29-c-end-navigation-redesign-design.md",
+      "plan": "docs/superpowers/plans/2026-05-29-c-end-navigation-redesign-plan.md",
+      "evidence": null,
+      "notes": "9 tasks: LoginBottomSheet, AuthPrompt overlay, page-level auth states, My page, bill detail, bottom nav refactor"
+    },
+    {
+      "id": "F009",
+      "name": "UTC → 中国标准时间 全局替换",
+      "description": "Replace all datetime.utcnow() with cst_now() across 20+ files, add +08:00 suffix to API responses, Flutter .toLocal() for display",
+      "status": "done",
+      "dependencies": [],
+      "evidence": "新建 utils.py (cst_now/cst_isoformat), 修改 20 个文件共 30+ 处, 后端序列化加 +08:00 后缀, Flutter 加 .toLocal(), 三端编译通过"
+    },
+    {
+      "id": "F011",
+      "name": "C-end homepage redesign",
+      "description": "Complete rewrite of home_page.dart with 5 sections: gradient banner, welcome card, hotel highlights grid, facility list, footer info",
+      "status": "done",
+      "dependencies": ["F003"],
+      "spec": "docs/superpowers/specs/2026-05-30-c-end-homepage-redesign-design.md",
+      "plan": "docs/superpowers/plans/2026-05-30-c-end-homepage-redesign-plan.md",
+      "evidence": "home_page.dart 完全重写 (498 insertions, 64 deletions), 5个区块: Banner渐变+欢迎卡片+亮点网格+设施列表+底部信息, dart analyze 0 issues"
+    },
+    {
+      "id": "F012",
+      "name": "C端全页面 UI 重构 (蓝色主色调)",
+      "description": "Full UI rewrite of all 9 C-end pages with blue #2563eb primary color, dark gradient backgrounds, service tracking timeline, scene mode logic",
+      "status": "done",
+      "dependencies": ["F003", "F011"],
+      "evidence": "dart analyze 0 errors. 11 files重写: home_page/room_control/ai_chat/work_order/my_page/bill_detail/facility/login/change_password/bottom_nav + 删除LoginBottomSheet. 蓝色#2563eb主色调, 深色渐变背景, 服务追踪时间线, 场景模式逻辑",
+      "notes": "全部9个C端页面按HTML原型1:1还原, 统一蓝色主色调+深色卡片风格"
+    },
+    {
+      "id": "F010",
+      "name": "Bug fixes: 用户管理住客数据 + C端首次登录改密无反应",
+      "description": "Fix two bugs: user management page not showing guest data (role=guest→type=guest), and C-end first-login password change not responding",
+      "status": "done",
+      "dependencies": ["F002", "F003"],
+      "bugs": [
+        {
+          "id": "B001",
+          "desc": "用户管理看不到C端住客数据",
+          "root_cause": "前端用 role=guest 查住客，后端用 type=guest 区分",
+          "fix": "UserManagementPage.tsx: role=guest → type=guest",
+          "verified": true
+        },
+        {
+          "id": "B002",
+          "desc": "C端首次登录改密后点击确认没反应",
+          "root_cause": "GoRouter redirect 在 LoginBottomSheet 处理改密前就跳转到 /change-password，弹窗被关闭",
+          "fix": "app.dart 移除 passwordChangeRequired 自动跳转; change_password_page.dart 加 context.go('/home')",
+          "verified": true
+        }
+      ]
+    },
+    {
+      "id": "F013",
+      "name": "人脸识别登录",
+      "description": "B 端开房时录入人客人脸并匹配身份证，C 端通过刷脸+活体检测登录。使用阿里云 API 实现人脸检测/比对/活体检测/搜索，人脸数据存储在阿里云人脸库",
+      "status": "done",
+      "dependencies": ["F001", "F002", "F003"],
+      "spec": "docs/superpowers/specs/2026-06-01-face-recognition-login-design.md",
+      "plan": "docs/superpowers/plans/2026-06-01-face-recognition-login-plan.md",
+      "evidence": [
+        "阿里云人脸 API 服务模块 (backend/app/aliyun/face.py)",
+        "人脸 API 路由 (backend/app/api/face.py) — detect/verify/register/search",
+        "B 端摄像头拍照组件 (frontend/src/pages/front-desk/FaceCapture.tsx)",
+        "CheckInModal 集成人脸录入 (OCR+比对+注册)",
+        "C 端刷脸登录页面 (smartstay-flutter/lib/pages/login/face_login_page.dart)",
+        "AuthBloc 支持 AuthFaceLoginRequested 事件",
+        "后端 py_compile + pytest 通过",
+        "前端 tsc --noEmit 通过"
+      ],
+      "bugs": [
+        {
+          "id": "B003",
+          "desc": "C-end face login 404",
+          "root_cause": "Stale uvicorn process on port 8000 serving old code without face router",
+          "fix": "Kill all Python/uvicorn processes on port 8000 and restart cleanly",
+          "verified": true
+        },
+        {
+          "id": "B004",
+          "desc": "Empty face_id in guests table",
+          "root_cause": "create_face_db() never called on startup, so AddFace/SearchFace always failed",
+          "fix": "Added create_face_db() to startup lifespan in main.py",
+          "verified": true
+        }
+      ]
+    }
+  ],
+  "upcoming": [
+    {
+      "id": "F007",
+      "name": "WebSocket real-time room control sync",
+      "description": "Push device state changes to other clients in the same room via WebSocket",
+      "status": "idea",
+      "dependencies": ["F003", "F004"],
+      "spec": null,
+      "plan": null,
+      "evidence": null,
+      "notes": "Push device state changes to other clients in same room"
+    },
+    {
+      "id": "F008",
+      "name": "Multi-session chat history persistence",
+      "description": "Chat sessions survive app restart, stored server-side with full conversation history",
+      "status": "idea",
+      "dependencies": ["F003", "F004"],
+      "spec": null,
+      "plan": null,
+      "evidence": null,
+      "notes": "Chat sessions survive app restart, stored server-side"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node \"C:/Users/21943/.claude/skills/harness-creator/scripts/validate-harness.mjs\" --target .)"
+    ]
+  }
+}

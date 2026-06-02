@@ -1,8 +1,10 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from sqlmodel import Field, SQLModel, Column
 from sqlalchemy.dialects.postgresql import JSONB
+
+from app.core.utils import cst_now
 
 
 class AIPricingLog(SQLModel, table=True):
@@ -15,8 +17,8 @@ class AIPricingLog(SQLModel, table=True):
     suggested_price: int
     status: str = Field(default="pending", max_length=20)
     suggested_by: str = Field(default="AI \u00b7 \u5b9a\u4ef7Agent", max_length=50)
-    confirmed_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    confirmed_by: Optional[uuid.UUID] = Field(default=None, foreign_key="staff.id")
+    created_at: datetime = Field(default_factory=cst_now)
     decided_at: Optional[datetime] = Field(default=None)
 
 
@@ -27,4 +29,4 @@ class AuditReport(SQLModel, table=True):
     date: str
     content: Optional[dict] = Field(default=None, sa_column=Column(JSONB))
     anomalies: Optional[dict] = Field(default=None, sa_column=Column(JSONB))
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime = Field(default_factory=cst_now)
