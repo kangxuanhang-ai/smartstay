@@ -36,6 +36,8 @@ async def c_login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     guest = result.scalar_one_or_none()
     if not guest or not verify_password(req.password, guest.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    if not guest.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="未查询到入住信息，请先在前台办理入住")
 
     access = create_access_token({"sub": str(guest.id), "role": "guest", "user_type": "guest"})
     refresh = create_refresh_token({"sub": str(guest.id), "role": "guest", "user_type": "guest"})
