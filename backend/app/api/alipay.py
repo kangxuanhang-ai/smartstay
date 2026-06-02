@@ -226,14 +226,18 @@ async def verify_alipay_payment(
         raise HTTPException(status_code=409, detail="订单状态不正确")
 
     # Query Alipay for trade status
-    alipay_client = _get_alipay_client()
-    query_model = AlipayTradeQueryModel()
-    query_model.out_trade_no = str(order.id)
-    query_request = AlipayTradeQueryRequest(biz_model=query_model)
-    query_response = alipay_client.execute(query_request)
-
-    trade_status = query_response.get("trade_status", "")
-    logger.info("Alipay verify: order=%s, trade_status=%s", order_id, trade_status)
+    try:
+        alipay_client = _get_alipay_client()
+        query_model = AlipayTradeQueryModel()
+        query_model.out_trade_no = str(order.id)
+        query_request = AlipayTradeQueryRequest(biz_model=query_model)
+        query_response = alipay_client.execute(query_request)
+        trade_status = query_response.get("trade_status", "")
+        logger.info("Alipay verify: order=%s, trade_status=%s", order_id, trade_status)
+    except Exception as e:
+        logger.warning("Alipay verify query failed: %s", e)
+        # Sandbox may not support trade query — return paid=False gracefully
+        return {"paid": False, "message": "无法查询支付宝支付状态，请确认支付后重试"}
 
     if trade_status in ("TRADE_SUCCESS", "TRADE_FINISHED"):
         # Payment confirmed — execute checkout
