@@ -22,6 +22,9 @@ export default function UserManagementPage() {
   const [editRecord, setEditRecord] = useState<any>(null)
   const [form] = Form.useForm()
   const [editForm] = Form.useForm()
+  const [guestEditOpen, setGuestEditOpen] = useState(false)
+  const [guestEditRecord, setGuestEditRecord] = useState<any>(null)
+  const [guestEditForm] = Form.useForm()
 
   const fetchUsers = async () => {
     setLoading(true)
@@ -84,6 +87,34 @@ export default function UserManagementPage() {
     })
   }
 
+  const handleEditGuest = async () => {
+    try {
+      const values = await guestEditForm.validateFields()
+      await apiClient.put(`/api/admin/guests/${guestEditRecord.id}`, values)
+      message.success('更新成功')
+      setGuestEditOpen(false)
+      guestEditForm.resetFields()
+      fetchUsers()
+    } catch {
+      message.error('更新失败')
+    }
+  }
+
+  const handleResetGuestPassword = async (record: any) => {
+    Modal.confirm({
+      title: '确认重置密码',
+      content: `确定要重置 ${record.name} 的密码为 123456 吗？`,
+      onOk: async () => {
+        try {
+          await apiClient.put(`/api/admin/guests/${record.id}/reset-password`)
+          message.success('密码已重置为 123456')
+        } catch {
+          message.error('重置失败')
+        }
+      },
+    })
+  }
+
   const columns = [
     { title: '姓名', dataIndex: 'name', key: 'name' },
     { title: '用户名', dataIndex: 'id_card', key: 'id_card', width: 140 },
@@ -111,7 +142,24 @@ export default function UserManagementPage() {
     },
   ]
 
-  const guestColumns = columns.filter((c) => c.key !== 'actions')
+  const guestColumns = [
+    ...columns.filter((c) => c.key !== 'actions'),
+    {
+      title: '操作', key: 'actions', width: 180,
+      render: (_: unknown, record: any) => (
+        <Space>
+          <Button type="link" size="small" onClick={() => {
+            setGuestEditRecord(record)
+            guestEditForm.setFieldsValue({ name: record.name, phone: record.phone })
+            setGuestEditOpen(true)
+          }}>编辑</Button>
+          <Button type="link" size="small" onClick={() => handleResetGuestPassword(record)}>
+            重置密码
+          </Button>
+        </Space>
+      ),
+    },
+  ]
 
   return (
     <div>
@@ -174,6 +222,22 @@ export default function UserManagementPage() {
               { value: 'manager', label: '总店长' },
               { value: 'admin', label: '系统管理员' },
             ]} />
+          </Form.Item>
+        </Form>
+      </Modal>
+      <Modal
+        title="编辑住客"
+        open={guestEditOpen}
+        onOk={handleEditGuest}
+        onCancel={() => { setGuestEditOpen(false); guestEditForm.resetFields() }}
+        okText="确认更新"
+      >
+        <Form form={guestEditForm} layout="vertical">
+          <Form.Item name="name" label="姓名" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="phone" label="手机号">
+            <Input />
           </Form.Item>
         </Form>
       </Modal>
