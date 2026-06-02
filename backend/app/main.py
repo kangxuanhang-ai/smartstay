@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.core.database import init_db
-from app.core.seed import seed_default_users, seed_default_rooms, seed_hotel_info, seed_facilities
+from app.core.seed import seed_default_staff, seed_default_rooms, seed_hotel_info, seed_facilities
 from app.api import auth, rooms, orders, work_orders, admin, consumptions
 from app.api import hotel
 from app.api.ai import router as ai_router
@@ -20,10 +20,19 @@ scheduler = AsyncIOScheduler()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    await seed_default_users()
+    await seed_default_staff()
     await seed_default_rooms()
     await seed_hotel_info()
     await seed_facilities()
+
+    # Create Aliyun face database on startup (safe to call repeatedly)
+    try:
+        from app.aliyun.face import create_face_db
+        from app.core.config import settings
+        import asyncio
+        await asyncio.to_thread(create_face_db, settings.ALIYUN_FACE_DB_NAME)
+    except Exception:
+        pass  # DB may already exist
 
     from app.tasks.audit import generate_audit_report
     scheduler.add_job(generate_audit_report, 'cron', hour=4, minute=0, id='daily_audit', replace_existing=True)

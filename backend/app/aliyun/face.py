@@ -1,7 +1,5 @@
-import base64
-import json
 from io import BytesIO
-from typing import Optional
+import warnings
 
 from alibabacloud_facebody20191230.client import Client as FacebodyClient
 from alibabacloud_facebody20191230 import models as facebody_models
@@ -20,64 +18,83 @@ def _create_client() -> FacebodyClient:
     return FacebodyClient(config)
 
 
+def _runtime() -> util_models.RuntimeOptions:
+    """创建 RuntimeOptions，忽略 SSL 错误（兼容 Python 3.14）"""
+    warnings.filterwarnings("ignore", message="Unverified HTTPS request")
+    return util_models.RuntimeOptions(ignore_ssl=True)
+
+
 def detect_face(image_bytes: bytes) -> dict:
+    """DetectFace — 检测人脸质量"""
     client = _create_client()
-    request = facebody_models.DetectFaceRequest(
-        image_url_or_buf=BytesIO(image_bytes)
+    request = facebody_models.DetectFaceAdvanceRequest(
+        image_urlobject=BytesIO(image_bytes)
     )
-    runtime = util_models.RuntimeOptions()
-    response = client.detect_face_with_options(request, runtime)
+    response = client.detect_face_advance(request, _runtime())
     return response.body.to_map()
 
 
 def compare_face(image_a_bytes: bytes, image_b_bytes: bytes) -> dict:
+    """CompareFace — 人脸比对 1:1"""
     client = _create_client()
-    request = facebody_models.CompareFaceRequest(
-        image_url_or_buf_a=BytesIO(image_a_bytes),
-        image_url_or_buf_b=BytesIO(image_b_bytes),
+    request = facebody_models.CompareFaceAdvanceRequest(
+        image_urlaobject=BytesIO(image_a_bytes),
+        image_urlbobject=BytesIO(image_b_bytes),
     )
-    runtime = util_models.RuntimeOptions()
-    response = client.compare_face_with_options(request, runtime)
+    response = client.compare_face_advance(request, _runtime())
     return response.body.to_map()
 
 
 def detect_living_face(image_bytes: bytes) -> dict:
+    """DetectLivingFace — 静默活体检测"""
     client = _create_client()
-    request = facebody_models.DetectLivingFaceRequest(
-        image_url_or_buf=BytesIO(image_bytes)
+    task = facebody_models.DetectLivingFaceAdvanceRequestTasks(
+        image_urlobject=BytesIO(image_bytes),
     )
-    runtime = util_models.RuntimeOptions()
-    response = client.detect_living_face_with_options(request, runtime)
+    request = facebody_models.DetectLivingFaceAdvanceRequest(tasks=[task])
+    response = client.detect_living_face_advance(request, _runtime())
+    return response.body.to_map()
+
+
+def add_face_entity(db_name: str, entity_id: str, labels: str = None) -> dict:
+    """AddFaceEntity — 创建人脸实体（AddFace 前必须先调用）"""
+    client = _create_client()
+    request = facebody_models.AddFaceEntityRequest(
+        db_name=db_name,
+        entity_id=entity_id,
+        labels=labels,
+    )
+    response = client.add_face_entity_with_options(request, _runtime())
     return response.body.to_map()
 
 
 def add_face(db_name: str, entity_id: str, image_bytes: bytes) -> dict:
+    """AddFace — 添加人脸到人脸库"""
     client = _create_client()
-    request = facebody_models.AddFaceRequest(
+    request = facebody_models.AddFaceAdvanceRequest(
         db_name=db_name,
         entity_id=entity_id,
-        image_url_or_buf=BytesIO(image_bytes),
+        image_url_object=BytesIO(image_bytes),
     )
-    runtime = util_models.RuntimeOptions()
-    response = client.add_face_with_options(request, runtime)
+    response = client.add_face_advance(request, _runtime())
     return response.body.to_map()
 
 
 def search_face(db_name: str, image_bytes: bytes) -> dict:
+    """SearchFace — 人脸搜索 1:N"""
     client = _create_client()
-    request = facebody_models.SearchFaceRequest(
+    request = facebody_models.SearchFaceAdvanceRequest(
         db_name=db_name,
-        image_url_or_buf=BytesIO(image_bytes),
-        max_num_return=5,
+        image_url_object=BytesIO(image_bytes),
+        limit=5,
     )
-    runtime = util_models.RuntimeOptions()
-    response = client.search_face_with_options(request, runtime)
+    response = client.search_face_advance(request, _runtime())
     return response.body.to_map()
 
 
 def create_face_db(db_name: str) -> dict:
+    """CreateFaceDb — 创建人脸库"""
     client = _create_client()
     request = facebody_models.CreateFaceDbRequest(name=db_name)
-    runtime = util_models.RuntimeOptions()
-    response = client.create_face_db_with_options(request, runtime)
+    response = client.create_face_db_with_options(request, _runtime())
     return response.body.to_map()

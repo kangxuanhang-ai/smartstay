@@ -70,9 +70,9 @@ export default function CheckInModal({ roomId, open, onClose }: Props) {
       const res = await apiClient.post('/api/face/verify', formData)
       if (res.data.matched) {
         setFaceVerified(true)
-        message.success(`人脸匹配成功 · 置信度 ${(res.data.confidence * 100).toFixed(1)}%`)
+        message.success(`人脸匹配成功 · 置信度 ${res.data.confidence.toFixed(1)}%`)
       } else {
-        setFaceError(`人脸与身份证不匹配（置信度 ${(res.data.confidence * 100).toFixed(1)}%），请重试`)
+        setFaceError(`人脸与身份证不匹配（置信度 ${res.data.confidence.toFixed(1)}%），请重试`)
         message.error('人脸匹配失败')
       }
     } catch {

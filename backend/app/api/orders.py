@@ -65,7 +65,7 @@ async def check_in(
         room.status = "occupied"
 
         await db.commit()
-        return {"message": "Check-in successful", "order_id": str(order.id)}
+        return {"message": "Check-in successful", "order_id": str(order.id), "guest_id": str(guest.id)}
     except HTTPException:
         raise
     except Exception:

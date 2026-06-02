@@ -11,6 +11,7 @@ from app.aliyun.face import (
     detect_face,
     compare_face,
     detect_living_face,
+    add_face_entity,
     add_face,
     search_face,
 )
@@ -23,8 +24,8 @@ router = APIRouter(prefix="/api/face", tags=["face"])
 async def detect_face_endpoint(file: UploadFile = File(...)):
     image_bytes = await file.read()
     result = detect_face(image_bytes)
-    data = result.get("data", {})
-    face_count = len(data.get("faceCount", [])) if data else 0
+    data = result.get("Data") or result.get("data", {})
+    face_count = data.get("FaceCount", 0) if data else 0
     return {"face_count": face_count, "quality_ok": face_count > 0}
 
 
@@ -36,9 +37,9 @@ async def verify_face(
     id_card_bytes = await id_card_image.read()
     live_bytes = await live_image.read()
     result = compare_face(id_card_bytes, live_bytes)
-    data = result.get("data", {})
-    confidence = (data.get("confidence", 0) if data else 0) / 100.0
-    return {"matched": confidence >= 0.8, "confidence": confidence}
+    data = result.get("Data") or result.get("data", {})
+    confidence = (data.get("Confidence", 0) if data else 0)
+    return {"matched": confidence >= 80, "confidence": confidence}
 
 
 @router.post("/register")
@@ -49,9 +50,17 @@ async def register_face(
     current_user=Depends(require_role("front_desk")),
 ):
     image_bytes = await file.read()
-    result = add_face(settings.ALIYUN_FACE_DB_NAME, guest_id, image_bytes)
-    data = result.get("data", {})
-    face_id = (data.get("faceId", [])[0] if data and data.get("faceId") else None)
+    # Aliyun EntityId cannot contain dashes, strip them from UUID
+    clean_id = guest_id.replace("-", "")
+    # 先创建实体（如果已存在则忽略）
+    try:
+        add_face_entity(settings.ALIYUN_FACE_DB_NAME, clean_id)
+    except Exception:
+        pass  # 实体已存在，继续添加人脸
+    result = add_face(settings.ALIYUN_FACE_DB_NAME, clean_id, image_bytes)
+    data = result.get("Data") or result.get("data", {})
+    # FaceId is a string from Aliyun AddFace API, not a list
+    face_id = data.get("FaceId") if data else None
     if not face_id:
         raise HTTPException(status_code=500, detail="人脸注册失败")
     stmt = select(Guest).where(Guest.id == uuid.UUID(guest_id))
@@ -68,29 +77,48 @@ async def register_face(
 @router.post("/search")
 async def search_face_login(file: UploadFile = File(...)):
     image_bytes = await file.read()
+    print(f"[FACE SEARCH] received {len(image_bytes)} bytes")
     # 1. 活体检测
     living_result = detect_living_face(image_bytes)
-    living_data = living_result.get("data", {})
-    if not living_data or living_data.get("confidence", 0) < 0.5:
+    print(f"[FACE SEARCH] living result: {living_result}")
+    living_data = living_result.get("Data") or living_result.get("data", {})
+    # DetectLivingFace 响应: Data.Elements[0].Results[0].{Suggestion, Rate}
+    elements = living_data.get("Elements", []) if living_data else []
+    living_pass = False
+    if elements and elements[0].get("Results", []):
+        r = elements[0]["Results"][0]
+        living_pass = r.get("Suggestion") == "pass" and (r.get("Rate", 0) or 0) >= 50
+        print(f"[FACE SEARCH] liveness: suggestion={r.get('Suggestion')}, rate={r.get('Rate')}, pass={living_pass}")
+    else:
+        print(f"[FACE SEARCH] liveness: no elements/results, elements={elements}")
+    if not living_pass:
         raise HTTPException(status_code=400, detail="活体检测未通过")
     # 2. 人脸搜索
     search_result = search_face(settings.ALIYUN_FACE_DB_NAME, image_bytes)
-    search_data = search_result.get("data", {})
-    match_list = search_data.get("matchList", []) if search_data else []
+    print(f"[FACE SEARCH] search result: {search_result}")
+    search_data = search_result.get("Data") or search_result.get("data", {})
+    match_list = search_data.get("MatchList", []) if search_data else []
+    print(f"[FACE SEARCH] match_list count={len(match_list)}")
+    # SearchFace 响应: MatchList[0].FaceItems[0].{EntityId, Confidence}
     if not match_list:
         raise HTTPException(status_code=404, detail="未找到匹配的人脸，请先到前台登记入住")
-    best_match = match_list[0]
-    confidence = best_match.get("confidence", 0) / 100.0
-    if confidence < 0.85:
+    face_items = match_list[0].get("FaceItems", []) if match_list[0] else []
+    if not face_items:
+        raise HTTPException(status_code=404, detail="未找到匹配的人脸")
+    top_face = face_items[0]
+    confidence = top_face.get("Confidence", 0)
+    if confidence < 70:
         raise HTTPException(status_code=400, detail="人脸匹配度不足，请重试")
-    entity_id = best_match.get("entityId")
+    entity_id = top_face.get("EntityId")
+    # Convert Aliyun EntityId (no dashes) back to UUID format for JWT sub
+    guest_uuid = str(uuid.UUID(entity_id))
     # 3. 签发 JWT
-    token_data = {"sub": entity_id, "role": "guest", "user_type": "guest"}
+    token_data = {"sub": guest_uuid, "role": "guest", "user_type": "guest"}
     access_token = create_access_token(token_data)
     refresh_token = create_refresh_token(token_data)
     return {
         "success": True,
-        "guest_id": entity_id,
+        "guest_id": guest_uuid,
         "confidence": confidence,
         "access_token": access_token,
         "refresh_token": refresh_token,

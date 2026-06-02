@@ -3,7 +3,7 @@ import { useAuthStore } from '../stores/authStore'
 
 type EventHandler = (data: any) => void
 
-const WS_URL = 'ws://localhost:8000/ws'
+const WS_URL = 'ws://localhost:8765/ws'
 
 // 模块级单例：全局唯一连接
 let globalWs: WebSocket | null = null

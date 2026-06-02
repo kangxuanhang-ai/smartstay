@@ -40,11 +40,16 @@ export default function FaceCapture({ onCapture, onRetry, captured }: FaceCaptur
 
   return (
     <div style={{ textAlign: 'center' }}>
-      {captured ? (
+      {captured && (
         <img src={URL.createObjectURL(captured)} alt="captured" style={{ width: 300, borderRadius: 8 }} />
-      ) : (
-        <video ref={videoRef} autoPlay playsInline style={{ width: 300, borderRadius: 8 }} />
       )}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        style={{ width: 300, borderRadius: 8, display: captured ? 'none' : 'block' }}
+      />
       <canvas ref={canvasRef} style={{ display: 'none' }} />
       <div style={{ marginTop: 12 }}>
         <button

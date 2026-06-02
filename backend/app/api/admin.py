@@ -369,6 +369,23 @@ async def create_user(
     return {"message": "员工账号创建成功", "id": str(staff.id)}
 
 
+# ── 删除用户 ──
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: uuid.UUID,
+    current_user: Staff = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(Guest).where(Guest.id == user_id)
+    result = await db.execute(stmt)
+    guest = result.scalar_one_or_none()
+    if guest:
+        await db.delete(guest)
+        await db.commit()
+        return {"message": "已删除"}
+    raise HTTPException(status_code=404, detail="用户不存在")
+
+
 # ── Mock数据批量注入 ──
 @router.post("/seed-mock")
 async def seed_mock_data(

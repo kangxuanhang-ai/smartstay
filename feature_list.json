@@ -131,6 +131,22 @@
         "AuthBloc 支持 AuthFaceLoginRequested 事件",
         "后端 py_compile + pytest 通过",
         "前端 tsc --noEmit 通过"
+      ],
+      "bugs": [
+        {
+          "id": "B003",
+          "desc": "C-end face login 404",
+          "root_cause": "Stale uvicorn process on port 8000 serving old code without face router",
+          "fix": "Kill all Python/uvicorn processes on port 8000 and restart cleanly",
+          "verified": true
+        },
+        {
+          "id": "B004",
+          "desc": "Empty face_id in guests table",
+          "root_cause": "create_face_db() never called on startup, so AddFace/SearchFace always failed",
+          "fix": "Added create_face_db() to startup lifespan in main.py",
+          "verified": true
+        }
       ]
     }
   ],

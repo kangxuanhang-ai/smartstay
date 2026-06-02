@@ -33,4 +33,11 @@ async def init_db():
         except Exception:
             pass
 
+        # 迁移：guests 表新增 face_id + face_registered
+        try:
+            await conn.execute(text("ALTER TABLE guests ADD COLUMN IF NOT EXISTS face_id VARCHAR(64)"))
+            await conn.execute(text("ALTER TABLE guests ADD COLUMN IF NOT EXISTS face_registered BOOLEAN DEFAULT FALSE"))
+        except Exception:
+            pass
+
         await conn.run_sync(SQLModel.metadata.create_all)
