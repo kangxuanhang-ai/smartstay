@@ -26,6 +26,35 @@ def _format_pem_key(key: str, key_type: str = "RSA PRIVATE") -> str:
     return f"-----BEGIN {key_type} KEY-----\n{key}\n-----END {key_type} KEY-----"
 
 
+def _ensure_pkcs1_private_key(raw_key: str) -> str:
+    """Ensure private key is in PKCS#1 PEM format (BEGIN RSA PRIVATE KEY).
+    The Alipay SDK's rsa library requires PKCS#1, not PKCS#8."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    import base64
+
+    # If already has RSA PRIVATE KEY header, it's PKCS#1
+    if "BEGIN RSA PRIVATE KEY" in raw_key:
+        return raw_key
+
+    # Try loading as PKCS#8 (BEGIN PRIVATE KEY) or raw base64
+    pem = _format_pem_key(raw_key, "PRIVATE")
+    try:
+        private_key = serialization.load_pem_private_key(pem.encode(), password=None)
+    except Exception:
+        # Maybe it's raw PKCS#1 DER without headers — try wrapping differently
+        pem = _format_pem_key(raw_key, "RSA PRIVATE")
+        return pem
+
+    # Convert to PKCS#1 PEM format
+    pkcs1_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.TraditionalOpenSSL,  # PKCS#1
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    return pkcs1_pem.decode()
+
+
 def _get_alipay_client():
     """Create a configured Alipay client using sandbox mode."""
     from alipay.aop.api.AlipayClientConfig import AlipayClientConfig
@@ -34,7 +63,7 @@ def _get_alipay_client():
     config = AlipayClientConfig()
     config.sandbox_debug = True
     config.app_id = settings.ALIPAY_APP_ID
-    config.app_private_key = _format_pem_key(settings.ALIPAY_PRIVATE_KEY, "RSA PRIVATE")
+    config.app_private_key = _ensure_pkcs1_private_key(settings.ALIPAY_PRIVATE_KEY)
     config.alipay_public_key = _format_pem_key(settings.ALIPAY_PUBLIC_KEY, "PUBLIC")
     config.sign_type = "RSA2"
     config.timeout = 15
