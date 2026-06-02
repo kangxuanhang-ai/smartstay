@@ -206,3 +206,52 @@ async def alipay_notify(
     # Return "success" to Alipay to acknowledge receipt
     from fastapi.responses import PlainTextResponse
     return PlainTextResponse("success")
+
+
+@router.post("/orders/{order_id}/verify-alipay-payment")
+async def verify_alipay_payment(
+    order_id: str,
+    current_user: Staff = Depends(require_role("front_desk")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Query Alipay to verify if payment was made, then checkout if paid."""
+    from alipay.aop.api.domain.AlipayTradeQueryModel import AlipayTradeQueryModel
+    from alipay.aop.api.request.AlipayTradeQueryRequest import AlipayTradeQueryRequest
+
+    result = await db.execute(select(Order).where(Order.id == uuid.UUID(order_id)))
+    order = result.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    if order.status != "checked_in":
+        raise HTTPException(status_code=409, detail="订单状态不正确")
+
+    # Query Alipay for trade status
+    alipay_client = _get_alipay_client()
+    query_model = AlipayTradeQueryModel()
+    query_model.out_trade_no = str(order.id)
+    query_request = AlipayTradeQueryRequest(biz_model=query_model)
+    query_response = alipay_client.execute(query_request)
+
+    trade_status = query_response.get("trade_status", "")
+    logger.info("Alipay verify: order=%s, trade_status=%s", order_id, trade_status)
+
+    if trade_status in ("TRADE_SUCCESS", "TRADE_FINISHED"):
+        # Payment confirmed — execute checkout
+        order.status = "checked_out"
+        order.check_out_time = cst_now()
+        await db.execute(
+            sa_update(Room).where(Room.id == order.room_id).values(status="dirty")
+        )
+        await db.commit()
+
+        await manager.broadcast_biz({
+            "event": "room.status_change",
+            "data": {"room_id": str(order.room_id), "old_status": "occupied", "new_status": "dirty"},
+        })
+        await manager.broadcast_biz({
+            "event": "payment.success",
+            "data": {"order_id": str(order.id), "room_id": str(order.room_id)},
+        })
+        return {"paid": True, "message": "支付成功，退房完成"}
+
+    return {"paid": False, "message": "支付尚未完成，请在支付宝完成支付后重试"}

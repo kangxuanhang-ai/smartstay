@@ -274,24 +274,22 @@ export default function RoomGridPage() {
     return () => { unsubRoom(); unsubPay() }
   }, [ws, paying])
 
-  // When user returns from Alipay tab, check if payment was confirmed
+  // When user returns from Alipay tab, verify payment status
   useEffect(() => {
     if (!paying) return
     const handleFocus = async () => {
       if (!paying || !settleOrder) return
       try {
-        const { data } = await apiClient.get(`/api/orders/room/${settleRoom?.id}/active`)
-        if (data.status !== 'checked_in') {
-          // Alipay callback confirmed the payment
+        const { data } = await apiClient.post(`/api/orders/${settleOrder.id}/verify-alipay-payment`)
+        if (data.paid) {
           setPaying(false)
           setSettleOpen(false)
           message.success('支付成功，退房完成')
           setRefreshKey((k: number) => k + 1)
         } else {
-          // Payment not yet confirmed - remind user
-          message.info('支付尚未确认，请在支付宝完成支付后点击确认按钮')
+          message.info('支付尚未完成，请在支付宝完成支付后点击确认按钮')
         }
-      } catch { /* order might not exist anymore */ }
+      } catch { /* ignore */ }
     }
     window.addEventListener('focus', handleFocus)
     return () => window.removeEventListener('focus', handleFocus)
@@ -478,24 +476,20 @@ export default function RoomGridPage() {
                 type="primary"
                 block
                 style={{ marginBottom: 12 }}
-                onClick={() => {
-                  Modal.confirm({
-                    title: '确认支付',
-                    content: '请确认您已在支付宝完成支付。未支付将导致账单异常。',
-                    okText: '已确认支付',
-                    cancelText: '取消',
-                    onOk: async () => {
-                      try {
-                        await apiClient.put(`/api/orders/${settleOrder.id}/checkout`)
-                        setPaying(false)
-                        setSettleOpen(false)
-                        message.success('退房完成')
-                        setRefreshKey((k: number) => k + 1)
-                      } catch {
-                        message.error('确认失败，请重试')
-                      }
-                    },
-                  })
+                onClick={async () => {
+                  try {
+                    const { data } = await apiClient.post(`/api/orders/${settleOrder.id}/verify-alipay-payment`)
+                    if (data.paid) {
+                      setPaying(false)
+                      setSettleOpen(false)
+                      message.success('支付成功，退房完成')
+                      setRefreshKey((k: number) => k + 1)
+                    } else {
+                      message.warning('支付尚未完成，请在支付宝完成支付后重试')
+                    }
+                  } catch (e: any) {
+                    message.error(e?.response?.data?.detail || '验证失败，请重试')
+                  }
                 }}
               >
                 已完成支付？点击确认
