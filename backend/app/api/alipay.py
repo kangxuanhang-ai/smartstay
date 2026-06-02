@@ -60,8 +60,7 @@ def _get_alipay_client():
     from alipay.aop.api.AlipayClientConfig import AlipayClientConfig
     from alipay.aop.api.DefaultAlipayClient import DefaultAlipayClient
 
-    config = AlipayClientConfig()
-    config.sandbox_debug = True
+    config = AlipayClientConfig(sandbox_debug=True)
     config.app_id = settings.ALIPAY_APP_ID
     config.app_private_key = _ensure_pkcs1_private_key(settings.ALIPAY_PRIVATE_KEY)
     config.alipay_public_key = _format_pem_key(settings.ALIPAY_PUBLIC_KEY, "PUBLIC")
