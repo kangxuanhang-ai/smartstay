@@ -1,7 +1,7 @@
 {
   "project": "SmartStay (智宿云)",
-  "last_updated": "2026-06-01",
-  "active_feature": null,
+  "last_updated": "2026-06-02",
+  "active_feature": "F014",
   "features": [
     {
       "id": "F001",
@@ -148,6 +148,17 @@
           "verified": true
         }
       ]
+    },
+    {
+      "id": "F014",
+      "name": "C 端 AI 聊天增强",
+      "description": "3-phase enhancement: Phase 1 UX (stop button, typing indicator, tool status, quick chips), Phase 2 features (Markdown, interactive cards, voice input, multi-session history), Phase 3 refactor (SSE extraction, typed cards, ChatBloc split)",
+      "status": "in-progress",
+      "dependencies": ["F003", "F004"],
+      "spec": "docs/superpowers/specs/2026-06-02-c-end-ai-chat-enhancement-design.md",
+      "plan": "docs/superpowers/plans/2026-06-02-c-end-ai-chat-enhancement-plan.md",
+      "evidence": null,
+      "notes": "Spec done. Plan pending (writing interrupted). 3 phases: UX → features → refactor."
     }
   ],
   "upcoming": [
@@ -161,17 +172,6 @@
       "plan": null,
       "evidence": null,
       "notes": "Push device state changes to other clients in same room"
-    },
-    {
-      "id": "F008",
-      "name": "Multi-session chat history persistence",
-      "description": "Chat sessions survive app restart, stored server-side with full conversation history",
-      "status": "idea",
-      "dependencies": ["F003", "F004"],
-      "spec": null,
-      "plan": null,
-      "evidence": null,
-      "notes": "Chat sessions survive app restart, stored server-side"
     }
   ]
 }

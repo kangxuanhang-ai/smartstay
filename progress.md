@@ -82,6 +82,14 @@
 
 ## What's Next
 
+### F014 — C 端 AI 聊天增强 (in-progress)
+- Spec: `docs/superpowers/specs/2026-06-02-c-end-ai-chat-enhancement-design.md`
+- 3 phases: Phase 1 UX → Phase 2 features → Phase 3 refactor
+- Brainstorming + spec done (2026-06-02). Plan writing interrupted, resume tomorrow.
+- Phase 1: stop button, typing indicator, tool status, quick chips (pure C-end)
+- Phase 2: Markdown rendering, interactive cards, voice input (阿里云 ASR), multi-session history
+- Phase 3: SSE extraction, typed ChatCard model, ChatBloc split
+
 ### F006 — C-end Navigation Redesign (planned)
 - Spec: `docs/superpowers/specs/2026-05-29-c-end-navigation-redesign-design.md`
 - Plan: `docs/superpowers/plans/2026-05-29-c-end-navigation-redesign-plan.md`
