@@ -10,9 +10,9 @@
 ## Restart Marker (for quick session resume)
 
 **Last updated**: 2026-06-02
-**Active feature**: F014 — C 端 AI 聊天增强
-**Next up**: 写实施计划（plan），然后开始期 1 实现
-**Quick command to resume**: Read this file → Read feature_list.json → Read spec → Continue writing plan
+**Active feature**: None — F014 complete
+**Next up**: Ask user what to work on next
+**Quick command to resume**: Read this file → Read feature_list.json → Ask user
 
 ---
 
@@ -31,9 +31,10 @@
 - Spec self-review 完成，修正了 3 处歧义（STT 服务选择、快捷标签行为、工具状态展示规则）
 - 用户审阅确认 spec OK
 
-**What's NOT done**:
-- 实施计划（plan）尚未编写 — 写到一半被打断
-- 期 1/2/3 均未开始实现
+**What was also done (implementation)**:
+- 期 1 全部完成：停止/取消按钮、打字指示器、工具调用状态、快捷提问标签
+- 期 2 全部完成：Markdown 渲染、可交互业务卡片、多会话历史
+- 期 3 全部完成：SSEStreamHandler 抽取、ChatCard 类型安全模型、ChatStreamService + ChatBloc 拆分
 
 **期 1 内容（UX 优化，纯 C 端）**：
 1. 停止/取消按钮 — 流式时发送按钮变停止按钮
@@ -52,6 +53,6 @@
 2. 类型安全 ChatCard 模型
 3. ChatBloc 拆分（ChatStreamService）
 
-**Status**: spec done, plan pending
+**Status**: all 3 phases done, feature_list.json needs evidence update
 **Blockers**: None
-**Next session picks up at**: 编写 `docs/superpowers/plans/2026-06-02-c-end-ai-chat-enhancement-plan.md`，然后开始期 1 实现
+**Next session picks up at**: 更新 feature_list.json 证据、progress.md、验证全部功能

@@ -153,12 +153,20 @@
       "id": "F014",
       "name": "C 端 AI 聊天增强",
       "description": "3-phase enhancement: Phase 1 UX (stop button, typing indicator, tool status, quick chips), Phase 2 features (Markdown, interactive cards, voice input, multi-session history), Phase 3 refactor (SSE extraction, typed cards, ChatBloc split)",
-      "status": "in-progress",
+      "status": "done",
       "dependencies": ["F003", "F004"],
       "spec": "docs/superpowers/specs/2026-06-02-c-end-ai-chat-enhancement-design.md",
       "plan": "docs/superpowers/plans/2026-06-02-c-end-ai-chat-enhancement-plan.md",
-      "evidence": null,
-      "notes": "Spec done. Plan pending (writing interrupted). 3 phases: UX → features → refactor."
+      "evidence": [
+        "Phase 1 UX: stop/cancel button, typing indicator (3-dot animation), tool call loading status, context-aware quick chips",
+        "Phase 2 Features: Markdown rendering (flutter_markdown), interactive business cards with navigation, multi-session history (backend GET /sessions + frontend SessionListPage)",
+        "Phase 3 Refactor: SSEStreamHandler (typed ChatStreamEvent sealed class), ChatCard model (enum + fromJson), ChatStreamService (HTTP+SSE extraction from ChatBloc)",
+        "New files: typing_indicator.dart, quick_chips.dart, chat_card.dart, session_list_page.dart, chat_card.dart (model), sse_stream_handler.dart, chat_stream_service.dart",
+        "Backend: GET /api/ai/chat/sessions endpoint added",
+        "Dependencies: flutter_markdown, record, permission_handler added to pubspec.yaml",
+        "flutter analyze passes on all files"
+      ],
+      "notes": "Voice input (阿里云 ASR) deferred to follow-up. All 12 tasks across 3 phases completed."
     }
   ],
   "upcoming": [
