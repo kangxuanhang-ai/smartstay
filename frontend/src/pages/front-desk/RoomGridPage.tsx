@@ -274,6 +274,25 @@ export default function RoomGridPage() {
     return () => { unsubRoom(); unsubPay() }
   }, [ws, paying])
 
+  // Auto-confirm when user returns from Alipay tab
+  useEffect(() => {
+    if (!paying) return
+    const handleFocus = async () => {
+      if (!paying || !settleOrder) return
+      try {
+        const { data } = await apiClient.get(`/api/orders/room/${settleRoom?.id}/active`)
+        if (data.status !== 'checked_in') {
+          setPaying(false)
+          setSettleOpen(false)
+          message.success('支付成功，退房完成')
+          setRefreshKey((k: number) => k + 1)
+        }
+      } catch { /* order might not exist anymore */ }
+    }
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [paying, settleOrder, settleRoom])
+
   const handleStatusChange = async (roomId: string, status: string) => {
     try {
       await apiClient.put(`/api/rooms/${roomId}/status`, { status })
@@ -457,17 +476,13 @@ export default function RoomGridPage() {
                 style={{ marginBottom: 12 }}
                 onClick={async () => {
                   try {
-                    const { data } = await apiClient.get(`/api/orders/room/${settleRoom.id}/active`)
-                    if (data.status === 'checked_out' || data.status !== 'checked_in') {
-                      setPaying(false)
-                      setSettleOpen(false)
-                      message.success('支付成功，退房完成')
-                      setRefreshKey((k: number) => k + 1)
-                    } else {
-                      message.info('尚未收到支付确认，请稍后再试')
-                    }
+                    await apiClient.put(`/api/orders/${settleOrder.id}/checkout`)
+                    setPaying(false)
+                    setSettleOpen(false)
+                    message.success('支付成功，退房完成')
+                    setRefreshKey((k: number) => k + 1)
                   } catch {
-                    message.error('查询失败')
+                    message.error('确认失败，请重试')
                   }
                 }}
               >
