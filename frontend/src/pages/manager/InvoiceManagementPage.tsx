@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Table, Tag, Space, Button, Tabs, message } from 'antd'
+import { Table, Tag, Space, Button, Tabs, Drawer, message } from 'antd'
+import jsPDF from 'jspdf'
 import apiClient from '../../api/client'
 
 interface InvoiceRow {
@@ -21,6 +22,8 @@ const STATUS_TAG: Record<string, { color: string; label: string }> = {
 export default function InvoiceManagementPage() {
   const [data, setData] = useState<InvoiceRow[]>([])
   const [loading, setLoading] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drawerRecord, setDrawerRecord] = useState<any>(null)
 
   const fetchInvoices = async () => {
     setLoading(true)
@@ -44,6 +47,21 @@ export default function InvoiceManagementPage() {
     }
   }
 
+  const handleExportPDF = (record: any) => {
+    const doc = new jsPDF()
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(18)
+    doc.text('Invoice / Fapiao', 20, 20)
+    doc.setFontSize(12)
+    doc.text(`Order ID: ${record.order_id || record.id}`, 20, 40)
+    doc.text(`Company: ${record.company_name || '-'}`, 20, 50)
+    doc.text(`Tax ID: ${record.tax_id || '-'}`, 20, 60)
+    doc.text(`Email: ${record.email || '-'}`, 20, 70)
+    doc.text(`Status: ${record.status}`, 20, 80)
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 90)
+    doc.save(`invoice-${record.id}.pdf`)
+  }
+
   const getRoomLabel = (orderId: string) => orderId.substring(0, 8) + '...'
 
   const columns = [
@@ -54,13 +72,25 @@ export default function InvoiceManagementPage() {
     { title: '状态', dataIndex: 'status', key: 'status', width: 100,
       render: (s: string) => <Tag color={STATUS_TAG[s]?.color}>{STATUS_TAG[s]?.label || s}</Tag> },
     {
-      title: '操作', key: 'actions', width: 160, render: (_: unknown, record: InvoiceRow) => (
+      title: '操作', key: 'actions', width: 200,
+      render: (_: unknown, record: any) => (
         <Space>
-          <Button type="link" size="small" onClick={() => message.info('查看详情功能开发中...')}>查看</Button>
-          {record.status === 'issued'
-            ? <Button type="link" size="small" style={{ color: '#52c41a' }} onClick={() => message.info('PDF 导出组件集成中...')}>导出PDF</Button>
-            : <Button type="link" size="small" style={{ color: '#faad14' }} onClick={() => handleMarkIssued(record.id)}>标记已开具</Button>
-          }
+          <Button type="link" size="small" onClick={() => {
+            setDrawerRecord(record)
+            setDrawerOpen(true)
+          }}>查看</Button>
+          {record.status === 'issued' && (
+            <Button type="link" size="small" style={{ color: '#52c41a' }}
+              onClick={() => handleExportPDF(record)}>
+              导出PDF
+            </Button>
+          )}
+          {record.status === 'draft' && (
+            <Button type="link" size="small"
+              onClick={() => handleMarkIssued(record.id)}>
+              标记已开具
+            </Button>
+          )}
         </Space>
       ),
     },
@@ -79,6 +109,23 @@ export default function InvoiceManagementPage() {
             children: <Table columns={columns} dataSource={data.filter((d) => d.status === 'issued')} loading={loading} pagination={false} /> },
         ]}
       />
+      <Drawer
+        title="发票详情"
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        width={400}
+      >
+        {drawerRecord && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div><strong>订单号：</strong>{drawerRecord.order_id || drawerRecord.id}</div>
+            <div><strong>公司名称：</strong>{drawerRecord.company_name || '-'}</div>
+            <div><strong>税号：</strong>{drawerRecord.tax_id || '-'}</div>
+            <div><strong>邮箱：</strong>{drawerRecord.email || '-'}</div>
+            <div><strong>地址：</strong>{drawerRecord.address || '-'}</div>
+            <div><strong>状态：</strong>{drawerRecord.status === 'issued' ? '已开具' : '草稿'}</div>
+          </div>
+        )}
+      </Drawer>
     </div>
   )
 }
