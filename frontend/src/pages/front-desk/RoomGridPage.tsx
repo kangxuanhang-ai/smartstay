@@ -252,6 +252,7 @@ export default function RoomGridPage() {
   const [settleOrder, setSettleOrder] = useState<any>(null)
   const [settleBill, setSettleBill] = useState<any>(null)
   const [settleLoading, setSettleLoading] = useState(false)
+  const [paying, setPaying] = useState(false)
   const ws = useWebSocket()
 
   useEffect(() => {
@@ -259,11 +260,19 @@ export default function RoomGridPage() {
   }, [refreshKey])
 
   useEffect(() => {
-    const unsub = ws.on('room.status_change', () => {
+    const unsubRoom = ws.on('room.status_change', () => {
       setRefreshKey((k) => k + 1)
     })
-    return unsub
-  }, [ws])
+    const unsubPay = ws.on('payment.success', () => {
+      if (paying) {
+        setPaying(false)
+        setSettleOpen(false)
+        message.success('支付成功，退房完成')
+        setRefreshKey((k) => k + 1)
+      }
+    })
+    return () => { unsubRoom(); unsubPay() }
+  }, [ws, paying])
 
   const handleStatusChange = async (roomId: string, status: string) => {
     try {
@@ -428,74 +437,110 @@ export default function RoomGridPage() {
       </Modal>
 
       <Modal
-        title="退房结算"
+        title={paying ? '等待支付' : '退房结算'}
         open={settleOpen}
-        onCancel={() => setSettleOpen(false)}
+        onCancel={() => { setSettleOpen(false); setPaying(false) }}
         footer={null}
         width={480}
       >
         {settleRoom && settleOrder && settleBill && (
-          <div>
-            <div style={{ marginBottom: 16 }}>
-              <div><strong>房间：</strong>{settleRoom.room_number} {ROOM_TYPE_LABELS[settleRoom.room_type] || settleRoom.room_type}</div>
-              <div><strong>住客：</strong>{settleOrder.guest_name || '-'}</div>
-            </div>
-            <table style={{ width: '100%', marginBottom: 16, borderCollapse: 'collapse' }}>
-              <tbody>
-                <tr>
-                  <td style={{ padding: '8px 0' }}>房费</td>
-                  <td style={{ textAlign: 'right', padding: '8px 0' }}>{'¥'}{(settleBill.room_rate / 100).toFixed(2)}</td>
-                </tr>
-                {settleBill.consumptions?.map((c: any, i: number) => (
-                  <tr key={i}>
-                    <td style={{ padding: '4px 0', color: '#999' }}>{c.item_name}</td>
-                    <td style={{ textAlign: 'right', padding: '4px 0', color: '#999' }}>{'¥'}{(c.amount / 100).toFixed(2)}</td>
-                  </tr>
-                ))}
-                <tr style={{ borderTop: '1px solid #333' }}>
-                  <td style={{ padding: '8px 0', fontWeight: 'bold' }}>合计</td>
-                  <td style={{ textAlign: 'right', padding: '8px 0', fontWeight: 'bold' }}>{'¥'}{(settleBill.grand_total / 100).toFixed(2)}</td>
-                </tr>
-              </tbody>
-            </table>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <Button
-                style={{ flex: 1 }}
-                disabled={!['ctrip', 'meituan'].includes(settleOrder.source)}
-                loading={settleLoading}
-                onClick={async () => {
-                  setSettleLoading(true)
-                  await new Promise((r) => setTimeout(r, 2000))
-                  try {
-                    await apiClient.put(`/api/orders/${settleOrder.id}/checkout`)
-                    message.success('退房成功')
-                    setSettleOpen(false)
-                    setRefreshKey((k: number) => k + 1)
-                  } catch {
-                    message.error('退房失败')
-                  } finally {
-                    setSettleLoading(false)
-                  }
-                }}
-              >
-                线上支付{['ctrip', 'meituan'].includes(settleOrder.source) ? '' : ' (仅携程/美团)'}
-              </Button>
+          paying ? (
+            <div style={{ textAlign: 'center', padding: '24px 0' }}>
+              <div style={{ fontSize: 40, marginBottom: 16 }}>⏳</div>
+              <div style={{ fontSize: 16, marginBottom: 8 }}>请在支付宝完成支付</div>
+              <div style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 24 }}>
+                ¥{(settleBill.grand_total / 100).toFixed(2)}
+              </div>
               <Button
                 type="primary"
-                style={{ flex: 1 }}
+                block
+                style={{ marginBottom: 12 }}
                 onClick={async () => {
                   try {
-                    const { data } = await apiClient.post(`/api/orders/${settleOrder.id}/create-alipay-order`)
-                    window.open(data.pay_url, '_blank')
+                    const { data } = await apiClient.get(`/api/orders/room/${settleRoom.id}/active`)
+                    if (data.status === 'checked_out' || data.status !== 'checked_in') {
+                      setPaying(false)
+                      setSettleOpen(false)
+                      message.success('支付成功，退房完成')
+                      setRefreshKey((k: number) => k + 1)
+                    } else {
+                      message.info('尚未收到支付确认，请稍后再试')
+                    }
                   } catch {
-                    message.error('创建支付订单失败')
+                    message.error('查询失败')
                   }
                 }}
               >
-                立即支付 (线下)
+                已完成支付？点击确认
               </Button>
+              <div>
+                <Button type="link" onClick={() => setPaying(false)}>返回</Button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div>
+              <div style={{ marginBottom: 16 }}>
+                <div><strong>房间：</strong>{settleRoom.room_number} {ROOM_TYPE_LABELS[settleRoom.room_type] || settleRoom.room_type}</div>
+                <div><strong>住客：</strong>{settleOrder.guest_name || '-'}</div>
+              </div>
+              <table style={{ width: '100%', marginBottom: 16, borderCollapse: 'collapse' }}>
+                <tbody>
+                  <tr>
+                    <td style={{ padding: '8px 0' }}>房费</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0' }}>{'¥'}{(settleBill.room_rate / 100).toFixed(2)}</td>
+                  </tr>
+                  {settleBill.consumptions?.map((c: any, i: number) => (
+                    <tr key={i}>
+                      <td style={{ padding: '4px 0', color: '#999' }}>{c.item_name}</td>
+                      <td style={{ textAlign: 'right', padding: '4px 0', color: '#999' }}>{'¥'}{(c.amount / 100).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                  <tr style={{ borderTop: '1px solid #333' }}>
+                    <td style={{ padding: '8px 0', fontWeight: 'bold' }}>合计</td>
+                    <td style={{ textAlign: 'right', padding: '8px 0', fontWeight: 'bold' }}>{'¥'}{(settleBill.grand_total / 100).toFixed(2)}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <Button
+                  style={{ flex: 1 }}
+                  disabled={!['ctrip', 'meituan'].includes(settleOrder.source)}
+                  loading={settleLoading}
+                  onClick={async () => {
+                    setSettleLoading(true)
+                    await new Promise((r) => setTimeout(r, 2000))
+                    try {
+                      await apiClient.put(`/api/orders/${settleOrder.id}/checkout`)
+                      message.success('退房成功')
+                      setSettleOpen(false)
+                      setRefreshKey((k: number) => k + 1)
+                    } catch {
+                      message.error('退房失败')
+                    } finally {
+                      setSettleLoading(false)
+                    }
+                  }}
+                >
+                  线上支付{['ctrip', 'meituan'].includes(settleOrder.source) ? '' : ' (仅携程/美团)'}
+                </Button>
+                <Button
+                  type="primary"
+                  style={{ flex: 1 }}
+                  onClick={async () => {
+                    try {
+                      const { data } = await apiClient.post(`/api/orders/${settleOrder.id}/create-alipay-order`)
+                      window.open(data.pay_url, '_blank')
+                      setPaying(true)
+                    } catch {
+                      message.error('创建支付订单失败')
+                    }
+                  }}
+                >
+                  立即支付 (线下)
+                </Button>
+              </div>
+            </div>
+          )
         )}
       </Modal>
     </div>

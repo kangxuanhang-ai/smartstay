@@ -193,6 +193,10 @@ async def alipay_notify(
                 "event": "room.status_change",
                 "data": {"room_id": str(order.room_id), "old_status": "occupied", "new_status": "dirty"},
             })
+            await manager.broadcast_biz({
+                "event": "payment.success",
+                "data": {"order_id": out_trade_no, "room_id": str(order.room_id), "amount": total_amount},
+            })
             logger.info("Alipay notify: order %s checked out successfully", out_trade_no)
         else:
             logger.warning(
