@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, delete, update
 
@@ -20,7 +20,7 @@ from app.models.consumption import Consumption
 from app.models.chat import ChatSession, ChatMessage
 from app.models.rag import RAGDocument, RAGEmbedding
 from app.ws.manager import manager
-from app.schemas.admin import UserCreate
+from app.schemas.admin import UserCreate, UserUpdate
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -367,6 +367,45 @@ async def create_user(
     await db.commit()
     await db.refresh(staff)
     return {"message": "员工账号创建成功", "id": str(staff.id)}
+
+
+# ── 编辑员工信息 ──
+@router.put("/users/{user_id}")
+async def update_user(
+    user_id: str,
+    body: UserUpdate,
+    current_user: Staff = Depends(require_role("manager")),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Staff).where(Staff.id == uuid.UUID(user_id)))
+    staff = result.scalar_one_or_none()
+    if not staff:
+        raise HTTPException(status_code=404, detail="员工不存在")
+    if body.name is not None:
+        staff.name = body.name
+    if body.phone is not None:
+        staff.phone = body.phone
+    if body.role is not None:
+        staff.role = body.role
+    await db.commit()
+    return {"message": "更新成功", "id": str(staff.id)}
+
+
+# ── 启用/禁用员工 ──
+@router.put("/users/{user_id}/toggle-status")
+async def toggle_user_status(
+    user_id: str,
+    current_user: Staff = Depends(require_role("manager")),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Staff).where(Staff.id == uuid.UUID(user_id)))
+    staff = result.scalar_one_or_none()
+    if not staff:
+        raise HTTPException(status_code=404, detail="员工不存在")
+    staff.is_active = not staff.is_active
+    await db.commit()
+    status = "启用" if staff.is_active else "禁用"
+    return {"message": f"已{status}", "is_active": staff.is_active}
 
 
 # ── 删除用户 ──
