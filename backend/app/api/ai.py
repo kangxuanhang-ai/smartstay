@@ -174,6 +174,41 @@ async def get_chat_history(
     ]
 
 
+@router.get("/chat/sessions")
+async def get_chat_sessions(
+    current_user: Guest = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """列出当前住客的所有聊天会话"""
+    result = await db.execute(
+        select(ChatSession)
+        .where(
+            ChatSession.order_id.in_(
+                select(Order.id).where(Order.user_id == current_user.id)
+            )
+        )
+        .order_by(ChatSession.created_at.desc())
+    )
+    sessions = result.scalars().all()
+
+    out = []
+    for s in sessions:
+        msg_result = await db.execute(
+            select(ChatMessage)
+            .where(ChatMessage.session_id == s.id, ChatMessage.role == "user")
+            .order_by(ChatMessage.created_at)
+            .limit(1)
+        )
+        first_msg = msg_result.scalar_one_or_none()
+        out.append({
+            "id": str(s.id),
+            "created_at": cst_isoformat(s.created_at),
+            "first_message": first_msg.content[:30] if first_msg else "",
+            "status": s.status,
+        })
+    return out
+
+
 @router.get("/pricing/logs")
 async def get_pricing_logs(
     current_user: Staff = Depends(require_role("manager")),
@@ -199,7 +234,7 @@ async def get_pricing_logs(
 @router.put("/pricing/{log_id}/approve")
 async def approve_pricing(
     log_id: str,
-    current_user: Staff = Depends(require_role("manager")),
+    current_user: Staff = Depends(require_role("manager", "front_desk")),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(AIPricingLog).where(AIPricingLog.id == uuid.UUID(log_id)))
@@ -224,7 +259,7 @@ async def approve_pricing(
 @router.put("/pricing/{log_id}/reject")
 async def reject_pricing(
     log_id: str,
-    current_user: Staff = Depends(require_role("manager")),
+    current_user: Staff = Depends(require_role("manager", "front_desk")),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(AIPricingLog).where(AIPricingLog.id == uuid.UUID(log_id)))
