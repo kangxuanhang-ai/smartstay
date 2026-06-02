@@ -211,51 +211,44 @@ async def alipay_notify(
 @router.post("/orders/{order_id}/verify-alipay-payment")
 async def verify_alipay_payment(
     order_id: str,
+    request: Request,
     current_user: Staff = Depends(require_role("front_desk")),
     db: AsyncSession = Depends(get_db),
 ):
-    """Query Alipay to verify if payment was made, then checkout if paid."""
-    from alipay.aop.api.domain.AlipayTradeQueryModel import AlipayTradeQueryModel
-    from alipay.aop.api.request.AlipayTradeQueryRequest import AlipayTradeQueryRequest
+    """Verify payment using return URL params from Alipay redirect."""
+    body = await request.json()
+    return_params = body.get("return_params", {})
 
     result = await db.execute(select(Order).where(Order.id == uuid.UUID(order_id)))
     order = result.scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="订单不存在")
     if order.status != "checked_in":
-        raise HTTPException(status_code=409, detail="订单状态不正确")
+        # Already checked out
+        return {"paid": True, "message": "已完成退房"}
 
-    # Query Alipay for trade status
-    try:
-        alipay_client = _get_alipay_client()
-        query_model = AlipayTradeQueryModel()
-        query_model.out_trade_no = str(order.id)
-        query_request = AlipayTradeQueryRequest(biz_model=query_model)
-        query_response = alipay_client.execute(query_request)
-        trade_status = query_response.get("trade_status", "")
-        logger.info("Alipay verify: order=%s, trade_status=%s", order_id, trade_status)
-    except Exception as e:
-        logger.warning("Alipay verify query failed: %s", e)
-        # Sandbox may not support trade query — return paid=False gracefully
-        return {"paid": False, "message": "无法查询支付宝支付状态，请确认支付后重试"}
+    # If return params provided, verify signature
+    if return_params and return_params.get("sign"):
+        sign = return_params.get("sign", "")
+        if _verify_alipay_signature(return_params, sign):
+            out_trade_no = return_params.get("out_trade_no", "")
+            if out_trade_no == str(order.id):
+                # Signature valid and order matches — execute checkout
+                order.status = "checked_out"
+                order.check_out_time = cst_now()
+                await db.execute(
+                    sa_update(Room).where(Room.id == order.room_id).values(status="dirty")
+                )
+                await db.commit()
 
-    if trade_status in ("TRADE_SUCCESS", "TRADE_FINISHED"):
-        # Payment confirmed — execute checkout
-        order.status = "checked_out"
-        order.check_out_time = cst_now()
-        await db.execute(
-            sa_update(Room).where(Room.id == order.room_id).values(status="dirty")
-        )
-        await db.commit()
+                await manager.broadcast_biz({
+                    "event": "room.status_change",
+                    "data": {"room_id": str(order.room_id), "old_status": "occupied", "new_status": "dirty"},
+                })
+                await manager.broadcast_biz({
+                    "event": "payment.success",
+                    "data": {"order_id": str(order.id), "room_id": str(order.room_id)},
+                })
+                return {"paid": True, "message": "支付成功，退房完成"}
 
-        await manager.broadcast_biz({
-            "event": "room.status_change",
-            "data": {"room_id": str(order.room_id), "old_status": "occupied", "new_status": "dirty"},
-        })
-        await manager.broadcast_biz({
-            "event": "payment.success",
-            "data": {"order_id": str(order.id), "room_id": str(order.room_id)},
-        })
-        return {"paid": True, "message": "支付成功，退房完成"}
-
-    return {"paid": False, "message": "支付尚未完成，请在支付宝完成支付后重试"}
+    return {"paid": False, "message": "支付验证失败，请确认支付后重试"}
