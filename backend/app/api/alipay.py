@@ -19,6 +19,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["alipay"])
 
 
+def _format_pem_key(key: str, key_type: str = "RSA PRIVATE") -> str:
+    """Wrap a raw base64 key in PEM format if it doesn't already have headers."""
+    if key.startswith("-----BEGIN"):
+        return key
+    return f"-----BEGIN {key_type} KEY-----\n{key}\n-----END {key_type} KEY-----"
+
+
 def _get_alipay_client():
     """Create a configured Alipay client using sandbox mode."""
     from alipay.aop.api.AlipayClientConfig import AlipayClientConfig
@@ -27,8 +34,8 @@ def _get_alipay_client():
     config = AlipayClientConfig()
     config.sandbox_debug = True
     config.app_id = settings.ALIPAY_APP_ID
-    config.app_private_key = settings.ALIPAY_PRIVATE_KEY
-    config.alipay_public_key = settings.ALIPAY_PUBLIC_KEY
+    config.app_private_key = _format_pem_key(settings.ALIPAY_PRIVATE_KEY, "RSA PRIVATE")
+    config.alipay_public_key = _format_pem_key(settings.ALIPAY_PUBLIC_KEY, "PUBLIC")
     config.sign_type = "RSA2"
     config.timeout = 15
 
