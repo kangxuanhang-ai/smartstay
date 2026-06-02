@@ -408,6 +408,43 @@ async def toggle_user_status(
     return {"message": f"已{status}", "is_active": staff.is_active}
 
 
+# ── 编辑住客信息 ──
+@router.put("/guests/{guest_id}")
+async def update_guest(
+    guest_id: str,
+    body: UserUpdate,
+    current_user: Staff = Depends(require_role("manager")),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Guest).where(Guest.id == uuid.UUID(guest_id)))
+    guest = result.scalar_one_or_none()
+    if not guest:
+        raise HTTPException(status_code=404, detail="住客不存在")
+    if body.name is not None:
+        guest.name = body.name
+    if body.phone is not None:
+        guest.phone = body.phone
+    await db.commit()
+    return {"message": "更新成功", "id": str(guest.id)}
+
+
+# ── 重置住客密码 ──
+@router.put("/guests/{guest_id}/reset-password")
+async def reset_guest_password(
+    guest_id: str,
+    current_user: Staff = Depends(require_role("manager")),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Guest).where(Guest.id == uuid.UUID(guest_id)))
+    guest = result.scalar_one_or_none()
+    if not guest:
+        raise HTTPException(status_code=404, detail="住客不存在")
+    guest.hashed_password = get_password_hash("123456")
+    guest.is_first_login = True
+    await db.commit()
+    return {"message": "密码已重置为 123456"}
+
+
 # ── 删除用户 ──
 @router.delete("/users/{user_id}")
 async def delete_user(
