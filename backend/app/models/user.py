@@ -15,6 +15,7 @@ class Staff(SQLModel, table=True):
     name: str = Field(max_length=50)
     hashed_password: str = Field(max_length=255)
     is_first_login: bool = Field(default=True)
+    is_active: bool = Field(default=True)
     role: str = Field(max_length=20)  # front_desk / manager / admin
     staff_type: Optional[str] = Field(default=None, max_length=20)  # housekeeping / maintenance
     created_at: datetime = Field(default_factory=cst_now)

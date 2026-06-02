@@ -7,3 +7,9 @@ class UserCreate(BaseModel):
     id_card: str
     phone: str = ""
     role: str = "front_desk"
+
+
+class UserUpdate(BaseModel):
+    name: str | None = None
+    phone: str | None = None
+    role: str | None = None
