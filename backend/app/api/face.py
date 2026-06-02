@@ -75,14 +75,13 @@ async def register_face(
 
 
 @router.post("/search")
-async def search_face_login(file: UploadFile = File(...)):
+async def search_face_login(file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
     image_bytes = await file.read()
     print(f"[FACE SEARCH] received {len(image_bytes)} bytes")
     # 1. 活体检测
     living_result = detect_living_face(image_bytes)
     print(f"[FACE SEARCH] living result: {living_result}")
     living_data = living_result.get("Data") or living_result.get("data", {})
-    # DetectLivingFace 响应: Data.Elements[0].Results[0].{Suggestion, Rate}
     elements = living_data.get("Elements", []) if living_data else []
     living_pass = False
     if elements and elements[0].get("Results", []):
@@ -99,27 +98,36 @@ async def search_face_login(file: UploadFile = File(...)):
     search_data = search_result.get("Data") or search_result.get("data", {})
     match_list = search_data.get("MatchList", []) if search_data else []
     print(f"[FACE SEARCH] match_list count={len(match_list)}")
-    # SearchFace 响应: MatchList[0].FaceItems[0].{EntityId, Confidence}
     if not match_list:
         raise HTTPException(status_code=404, detail="未找到匹配的人脸，请先到前台登记入住")
-    face_items = match_list[0].get("FaceItems", []) if match_list[0] else []
-    if not face_items:
-        raise HTTPException(status_code=404, detail="未找到匹配的人脸")
-    top_face = face_items[0]
-    confidence = top_face.get("Confidence", 0)
-    if confidence < 70:
-        raise HTTPException(status_code=400, detail="人脸匹配度不足，请重试")
-    entity_id = top_face.get("EntityId")
-    # Convert Aliyun EntityId (no dashes) back to UUID format for JWT sub
-    guest_uuid = str(uuid.UUID(entity_id))
-    # 3. 签发 JWT
-    token_data = {"sub": guest_uuid, "role": "guest", "user_type": "guest"}
-    access_token = create_access_token(token_data)
-    refresh_token = create_refresh_token(token_data)
-    return {
-        "success": True,
-        "guest_id": guest_uuid,
-        "confidence": confidence,
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-    }
+    # 3. 遍历所有匹配结果，找到第一个 is_active 的住客
+    for match in match_list:
+        face_items = match.get("FaceItems", []) if match else []
+        for face in face_items:
+            confidence = face.get("Confidence", 0)
+            if confidence < 70:
+                continue
+            entity_id = face.get("EntityId")
+            if not entity_id:
+                continue
+            guest_uuid = uuid.UUID(entity_id)
+            result_db = await db.execute(select(Guest).where(Guest.id == guest_uuid))
+            guest = result_db.scalar_one_or_none()
+            if not guest:
+                continue
+            if not guest.is_active:
+                print(f"[FACE SEARCH] guest {guest_uuid} is_active=False, skipping")
+                continue
+            # 找到活跃住客，签发 JWT
+            guest_uuid_str = str(guest_uuid)
+            token_data = {"sub": guest_uuid_str, "role": "guest", "user_type": "guest"}
+            access_token = create_access_token(token_data)
+            refresh_token = create_refresh_token(token_data)
+            return {
+                "success": True,
+                "guest_id": guest_uuid_str,
+                "confidence": confidence,
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+            }
+    raise HTTPException(status_code=404, detail="未找到有效住客，请先到前台办理入住")
