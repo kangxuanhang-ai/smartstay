@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Card, Tag, Dropdown, Modal, Descriptions, Table, Timeline, Button, Spin, Empty } from 'antd'
+import { Card, Tag, Dropdown, Modal, Descriptions, Table, Timeline, Button, Spin, Empty, message } from 'antd'
 import { HomeOutlined, ClockCircleOutlined, DollarOutlined, ToolOutlined } from '@ant-design/icons'
 import apiClient from '../../api/client'
 import { useWebSocket } from '../../hooks/useWebSocket'
@@ -121,15 +121,9 @@ function RoomDetailModal({ room, open, onClose, onCheckout }: RoomDetailModalPro
     }).finally(() => setLoading(false))
   }, [open, room.id, room.status])
 
-  const handleCheckout = async () => {
-    if (!order) return
-    try {
-      await apiClient.put(`/api/orders/${order.id}/checkout`)
-      onCheckout(room.id)
-      onClose()
-    } catch {
-      // handled by parent
-    }
+  const handleCheckout = () => {
+    onClose()
+    onCheckout(room.id)
   }
 
   return (
@@ -253,6 +247,11 @@ export default function RoomGridPage() {
   const [infoModalOpen, setInfoModalOpen] = useState(false)
   const [infoRoom, setInfoRoom] = useState<Room | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [settleOpen, setSettleOpen] = useState(false)
+  const [settleRoom, setSettleRoom] = useState<Room | null>(null)
+  const [settleOrder, setSettleOrder] = useState<any>(null)
+  const [settleBill, setSettleBill] = useState<any>(null)
+  const [settleLoading, setSettleLoading] = useState(false)
   const ws = useWebSocket()
 
   useEffect(() => {
@@ -276,14 +275,16 @@ export default function RoomGridPage() {
     }
   }
 
-  const handleCheckout = async (roomId: string) => {
+  const openSettlement = async (room: Room) => {
     try {
-      const { data } = await apiClient.get(`/api/orders/room/${roomId}/active`)
-      await apiClient.put(`/api/orders/${data.id}/checkout`)
-      message.success('退房成功')
-      setRefreshKey((k) => k + 1)
+      const { data: order } = await apiClient.get(`/api/orders/room/${room.id}/active`)
+      const { data: bill } = await apiClient.get(`/api/orders/${order.id}/bill`)
+      setSettleRoom(room)
+      setSettleOrder(order)
+      setSettleBill(bill)
+      setSettleOpen(true)
     } catch {
-      message.error('退房失败')
+      message.error('获取账单失败')
     }
   }
 
@@ -328,7 +329,7 @@ export default function RoomGridPage() {
                   : []),
                 // occupied: 仅办理退房（退房后自动变dirty）
                 ...(room.status === 'occupied'
-                  ? [{ key: 'checkout', label: '🏃 办理退房', onClick: () => handleCheckout(room.id) }]
+                  ? [{ key: 'checkout', label: '🏃 办理退房', onClick: () => openSettlement(room) }]
                   : []),
                 // dirty: 设为空房（保洁完成）、设为维修中
                 ...(room.status === 'dirty'
@@ -389,7 +390,10 @@ export default function RoomGridPage() {
           room={detailRoom}
           open={!!detailRoom}
           onClose={() => setDetailRoom(null)}
-          onCheckout={handleCheckout}
+          onCheckout={(roomId) => {
+            const room = rooms.find((r: Room) => r.id === roomId)
+            if (room) openSettlement(room)
+          }}
         />
       )}
 
@@ -419,6 +423,78 @@ export default function RoomGridPage() {
               </Tag>
             </div>
             <div><strong>价格：</strong>¥{(infoRoom.current_price / 100).toFixed(2)}/晚</div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        title="退房结算"
+        open={settleOpen}
+        onCancel={() => setSettleOpen(false)}
+        footer={null}
+        width={480}
+      >
+        {settleRoom && settleOrder && settleBill && (
+          <div>
+            <div style={{ marginBottom: 16 }}>
+              <div><strong>房间：</strong>{settleRoom.room_number} {ROOM_TYPE_LABELS[settleRoom.room_type] || settleRoom.room_type}</div>
+              <div><strong>住客：</strong>{settleOrder.guest_name || '-'}</div>
+            </div>
+            <table style={{ width: '100%', marginBottom: 16, borderCollapse: 'collapse' }}>
+              <tbody>
+                <tr>
+                  <td style={{ padding: '8px 0' }}>房费</td>
+                  <td style={{ textAlign: 'right', padding: '8px 0' }}>{'¥'}{(settleBill.room_rate / 100).toFixed(2)}</td>
+                </tr>
+                {settleBill.consumptions?.map((c: any, i: number) => (
+                  <tr key={i}>
+                    <td style={{ padding: '4px 0', color: '#999' }}>{c.item_name}</td>
+                    <td style={{ textAlign: 'right', padding: '4px 0', color: '#999' }}>{'¥'}{(c.amount / 100).toFixed(2)}</td>
+                  </tr>
+                ))}
+                <tr style={{ borderTop: '1px solid #333' }}>
+                  <td style={{ padding: '8px 0', fontWeight: 'bold' }}>合计</td>
+                  <td style={{ textAlign: 'right', padding: '8px 0', fontWeight: 'bold' }}>{'¥'}{(settleBill.grand_total / 100).toFixed(2)}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <Button
+                style={{ flex: 1 }}
+                disabled={!['ctrip', 'meituan'].includes(settleOrder.source)}
+                loading={settleLoading}
+                onClick={async () => {
+                  setSettleLoading(true)
+                  await new Promise((r) => setTimeout(r, 2000))
+                  try {
+                    await apiClient.put(`/api/orders/${settleOrder.id}/checkout`)
+                    message.success('退房成功')
+                    setSettleOpen(false)
+                    setRefreshKey((k: number) => k + 1)
+                  } catch {
+                    message.error('退房失败')
+                  } finally {
+                    setSettleLoading(false)
+                  }
+                }}
+              >
+                线上支付{['ctrip', 'meituan'].includes(settleOrder.source) ? '' : ' (仅携程/美团)'}
+              </Button>
+              <Button
+                type="primary"
+                style={{ flex: 1 }}
+                onClick={async () => {
+                  try {
+                    const { data } = await apiClient.post(`/api/orders/${settleOrder.id}/create-alipay-order`)
+                    window.open(data.pay_url, '_blank')
+                  } catch {
+                    message.error('创建支付订单失败')
+                  }
+                }}
+              >
+                立即支付 (线下)
+              </Button>
+            </div>
           </div>
         )}
       </Modal>
