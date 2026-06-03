@@ -16,7 +16,6 @@ class Settings(BaseSettings):
     ALIYUN_ACCESS_KEY_SECRET: str = ""
     ALIYUN_REGION_ID: str = "cn-shanghai"
     ALIYUN_FACE_DB_NAME: str = "smartstay_faces"
-    ALIYUN_ASR_APP_KEY: str = ""  # 智能语音交互项目 App Key
 
     # 支付宝沙箱配置
     ALIPAY_APP_ID: str = ""
