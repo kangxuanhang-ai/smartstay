@@ -61,9 +61,25 @@ async def ai_chat(
     db.add(user_msg)
     await db.commit()
 
+    # 加载对话历史（最近20条）
+    hist_result = await db.execute(
+        select(ChatMessage)
+        .where(ChatMessage.session_id == session.id)
+        .order_by(ChatMessage.created_at)
+        .limit(20)
+    )
+    history = hist_result.scalars().all()
+    history_msgs = []
+    for m in history:
+        if m.role == "user":
+            history_msgs.append(HumanMessage(content=m.content))
+        elif m.role == "assistant":
+            from langchain_core.messages import AIMessage
+            history_msgs.append(AIMessage(content=m.content))
+
     graph = build_graph()
     initial_state: AgentState = {
-        "messages": [HumanMessage(content=user_input)],
+        "messages": history_msgs,
         "user_id": str(current_user.id),
         "room_id": str(order.room_id) if room else None,
         "order_id": str(order.id),
