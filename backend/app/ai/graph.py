@@ -61,13 +61,21 @@ async def knowledge_node(state: AgentState):
     return state
 
 
-def _get_card_title(tool_name: str) -> str:
-    titles = {
-        "control_device_tool": "🔧 空调调节中",
-        "create_work_order_tool": "📦 报修工单已创建",
-        "query_knowledge_tool": "📚 知识库检索",
-    }
-    return titles.get(tool_name, f"已执行：{tool_name}")
+def _get_card_title(tool_name: str, tool_args: dict = None) -> str:
+    if tool_name == "control_device_tool":
+        device = (tool_args or {}).get("device", "")
+        device_names = {
+            "living_light": "客厅灯光", "bedroom_light": "卧室灯光",
+            "bedside_light": "床头灯", "curtain": "窗帘",
+            "ac_temp": "空调温度", "ac_mode": "空调模式",
+        }
+        name = device_names.get(device, "设备")
+        return f"✅ {name}已调节"
+    if tool_name == "create_work_order_tool":
+        return "📦 工单已创建"
+    if tool_name == "query_knowledge_tool":
+        return "📚 知识库检索"
+    return f"✅ {tool_name}已执行"
 
 
 async def _broadcast_work_order(tool_args: dict, result: str):
@@ -124,7 +132,7 @@ async def _execute_single_tool(call, tools, state, user_text):
     for t in tools:
         if t.name == tool_name:
             result = await t.ainvoke(tool_args)
-            card_title = _get_card_title(tool_name)
+            card_title = _get_card_title(tool_name, tool_args)
             return {
                 "card": {"type": "success", "title": card_title, "detail": str(result)},
                 "tool_message": (call.get("id", ""), str(result)),
@@ -155,6 +163,9 @@ async def action_node(state: AgentState):
             "- create_work_order_tool: 创建送物或报修工单\n"
             "- query_knowledge_tool: 检索酒店知识库\n"
             "- modify_room_price_tool: 修改房价（仅店长可用）\n\n"
+            "重要规则：\n"
+            "- 如果住客同时提出多个操作请求（如「空调调到20度并且把窗帘关闭」），必须返回多个tool_calls，每个操作一个tool_call\n"
+            "- 每个tool_call对应一个独立的操作，不要合并\n\n"
             "意图推断规则：\n"
             "- 「我回来了/我回家了/回来了」→ 开灯、开窗帘、调空调到舒适温度\n"
             "- 「我要睡了/晚安/睡觉」→ 关灯、关窗帘、空调调到26°C\n"
