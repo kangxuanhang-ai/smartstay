@@ -155,7 +155,12 @@ async def action_node(state: AgentState):
     """Tool Calling with multi-step agent loop."""
     last_msg = state["messages"][-1] if state["messages"] else None
     user_text = last_msg.content if last_msg else ""
-    logger.info(f"action_node entered, user_text={user_text[:50]}")
+    # 去掉用户输入中的房间号，防止 LLM 控制别的房间
+    import re
+    clean_text = re.sub(r'\d{3,4}号?房?间?|room\s*\d+', '', user_text).strip()
+    if not clean_text:
+        clean_text = user_text
+    logger.info(f"action_node entered, user_text={clean_text[:50]}")
 
     cards = []
     try:
@@ -187,7 +192,7 @@ async def action_node(state: AgentState):
             "根据住客请求选择合适的工具并立即执行。"
         ))
 
-        messages = [system_msg, HumanMessage(content=user_text)]
+        messages = [system_msg, HumanMessage(content=clean_text)]
 
         for iteration in range(MAX_ITERATIONS):
             resp = await llm_with_tools.ainvoke(messages)
