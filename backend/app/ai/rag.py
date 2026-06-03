@@ -89,7 +89,20 @@ async def query_vector_store(query: str, top_k: int = 5) -> list[str]:
         )
         result = await db.execute(stmt)
         rows = result.fetchall()
-        return [row[0] for row in rows if row[1] > 0.1]
+        results = [row[0] for row in rows if row[1] > 0.05]
+
+        # 关键词兜底：如果向量搜索没结果，用 LIKE 搜索
+        if not results:
+            keyword = f"%{query[:4]}%"
+            kw_stmt = (
+                sa_select(RAGEmbedding.content)
+                .where(RAGEmbedding.content.like(keyword))
+                .limit(top_k)
+            )
+            kw_result = await db.execute(kw_stmt)
+            results = [row[0] for row in kw_result.fetchall()]
+
+        return results
 
 
 async def get_all_documents():
