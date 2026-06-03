@@ -327,7 +327,7 @@ async def transcribe(
     if len(contents) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="音频文件过大，最大 10MB")
 
-    allowed_formats = {"m4a", "wav", "mp3", "aac", "ogg", "amr"}
+    allowed_formats = {"m4a", "wav", "mp3", "aac", "ogg", "amr", "webm"}
     ext = audio.filename.rsplit(".", 1)[-1].lower() if audio.filename and "." in audio.filename else ""
     if ext not in allowed_formats:
         raise HTTPException(status_code=400, detail=f"不支持的音频格式: {ext}")

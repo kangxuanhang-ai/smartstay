@@ -22,6 +22,7 @@ _FORMAT_MAP = {
     "mp3": "mp3",
     "ogg": "ogg",
     "amr": "amr",
+    "webm": "opus",
 }
 
 
