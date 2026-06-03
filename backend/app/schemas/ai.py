@@ -4,6 +4,7 @@ from typing import Optional
 
 class ChatRequest(BaseModel):
     message: str
+    new_session: bool = False
 
 
 class SafetyThresholdRequest(BaseModel):

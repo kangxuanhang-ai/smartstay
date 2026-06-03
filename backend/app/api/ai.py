@@ -45,6 +45,17 @@ async def ai_chat(
 
     user_input = req.message
 
+    # 新会话：关闭旧的 active session
+    if req.new_session:
+        result = await db.execute(
+            select(ChatSession).where(ChatSession.order_id == order.id, ChatSession.status == "active")
+        )
+        old_sessions = result.scalars().all()
+        for s in old_sessions:
+            s.status = "closed"
+        if old_sessions:
+            await db.commit()
+
     # 创建或复用 ChatSession
     result = await db.execute(
         select(ChatSession).where(ChatSession.order_id == order.id, ChatSession.status == "active")
