@@ -102,7 +102,10 @@ async def transcribe_audio(audio_bytes: bytes, audio_format: str = "m4a") -> str
             content=audio_bytes,
             headers=headers,
         )
-        resp.raise_for_status()
+
+        if resp.status_code != 200:
+            raise RuntimeError(f"ASR HTTP {resp.status_code}: {resp.text}")
+
         result = resp.json()
 
     if result.get("status") != 20000000:
