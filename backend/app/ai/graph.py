@@ -51,13 +51,14 @@ async def knowledge_node(state: AgentState):
 
         recent = state["messages"][-5:]
         recent_text = "\n".join(f"{m.type}: {m.content}" for m in recent if hasattr(m, "content") and m.content)
-        prompt = (
+        system_prompt = (
             "你是智宿云酒店的AI虚拟管家。请严格依据以下酒店知识库信息回答住客问题。"
             "如果知识库没有相关信息，请诚实告知住客并建议联系前台。\n\n"
             f"【酒店知识库】\n{context}\n\n"
             f"【最近对话】\n{recent_text}"
         )
-        resp = await llm.ainvoke(prompt)
+        from langchain_core.messages import HumanMessage
+        resp = await llm.ainvoke([SystemMessage(content=system_prompt), HumanMessage(content=user_text)])
         state["messages"].append(resp)
     except Exception as e:
         logger.error(f"knowledge_node RAG查询失败: {type(e).__name__}: {e}")
