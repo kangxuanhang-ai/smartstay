@@ -1,6 +1,6 @@
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 from langchain_deepseek import ChatDeepSeek
 import asyncio
 import logging
@@ -132,18 +132,20 @@ async def _execute_single_tool(call, tools, state, user_text):
     return {"card": {"type": "error", "title": f"未知工具：{tool_name}"}, "tool_message": None}
 
 
+MAX_ITERATIONS = 5
+
+
 async def action_node(state: AgentState):
-    """Tool Calling 执行节点"""
+    """Tool Calling with multi-step agent loop."""
     last_msg = state["messages"][-1] if state["messages"] else None
     user_text = last_msg.content if last_msg else ""
-    print(f"[GRAPH-PRINT] action_node 进入, user_text={user_text[:50]}", flush=True)
+    logger.info(f"action_node entered, user_text={user_text[:50]}")
 
     cards = []
     try:
         tools = build_tools()
         llm_with_tools = llm.bind_tools(tools)
 
-        from langchain_core.messages import HumanMessage, SystemMessage
         system_msg = SystemMessage(content=(
             "你是智宿云酒店的AI虚拟管家。当前住客需要你执行具体操作。\n"
             "你必须调用工具来完成请求，禁止只回复文字而不调用工具。\n\n"
@@ -162,23 +164,39 @@ async def action_node(state: AgentState):
             "- 灯光value用bool（true=开，false=关），窗帘用int（0-100），温度用int（16-30）\n\n"
             "根据住客请求选择合适的工具并立即执行。"
         ))
-        resp = await llm_with_tools.ainvoke([system_msg, HumanMessage(content=user_text)])
 
-        if resp.tool_calls:
+        messages = [system_msg, HumanMessage(content=user_text)]
+
+        for iteration in range(MAX_ITERATIONS):
+            resp = await llm_with_tools.ainvoke(messages)
+
+            if not resp.tool_calls:
+                # LLM done calling tools
+                if resp.content:
+                    messages.append(resp)
+                break
+
+            # Execute all tool calls in parallel
             results = await asyncio.gather(*[
                 _execute_single_tool(call, tools, state, user_text)
                 for call in resp.tool_calls
             ])
+
+            # Collect cards and feed results back to LLM
             for call, result in zip(resp.tool_calls, results):
                 cards.append(result["card"])
                 if result["tool_message"]:
-                    _, detail = result["tool_message"]
+                    call_id, detail = result["tool_message"]
+                    messages.append(ToolMessage(content=detail, tool_call_id=call_id))
                     await _broadcast_work_order(call["args"], detail)
+        else:
+            # MAX_ITERATIONS reached without LLM stopping
+            logger.warning(f"action_node hit MAX_ITERATIONS ({MAX_ITERATIONS})")
 
-        # 兜底：LLM 没调用任何 tool 时，根据关键词强制执行
+        # Keyword fallback if no tools were called at all
         if not cards:
-            text = user_text.lower()
             wo_type = None
+            text = user_text.lower()
             if any(kw in text for kw in ["报修", "维修", "坏了", "故障", "堵了", "漏水", "不制冷", "不工作", "工单"]):
                 wo_type = "repair"
             elif any(kw in text for kw in ["送", "拿", "要", "需要"]):
@@ -196,10 +214,9 @@ async def action_node(state: AgentState):
                             await _broadcast_work_order(wo_args, str(result))
                             break
 
-        state["messages"].append(resp)
+        state["messages"] = messages
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error(f"action_node failed: {e}", exc_info=True)
         from langchain_core.messages import AIMessage
         state["messages"].append(AIMessage(content="抱歉，操作执行失败，请联系前台处理。"))
     state["business_cards"] = cards
