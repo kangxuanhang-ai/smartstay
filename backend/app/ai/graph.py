@@ -164,7 +164,7 @@ async def action_node(state: AgentState):
 
         system_msg = SystemMessage(content=(
             "你是智宿云酒店的AI虚拟管家。当前住客需要你执行具体操作。\n"
-            "你必须调用工具来完成请求，禁止只回复文字而不调用工具。\n\n"
+            "请根据住客请求选择合适的工具执行。如果没有匹配的工具，直接回复文字说明。\n\n"
             "可用工具：\n"
             "- control_device_tool: 控制灯光/窗帘/空调\n"
             "- create_work_order_tool: 创建送物或报修工单\n"
