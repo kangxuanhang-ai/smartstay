@@ -61,14 +61,15 @@ async def ai_chat(
     db.add(user_msg)
     await db.commit()
 
-    # 加载对话历史（最近20条）
+    # 加载对话历史（最近20条，跳过当前消息本身）
     hist_result = await db.execute(
         select(ChatMessage)
-        .where(ChatMessage.session_id == session.id)
-        .order_by(ChatMessage.created_at)
+        .where(ChatMessage.session_id == session.id, ChatMessage.id != user_msg.id)
+        .order_by(ChatMessage.created_at.desc())
         .limit(20)
     )
     history = hist_result.scalars().all()
+    history.reverse()  # 恢复时间正序
     history_msgs = []
     for m in history:
         if m.role == "user":
@@ -76,6 +77,8 @@ async def ai_chat(
         elif m.role == "assistant":
             from langchain_core.messages import AIMessage
             history_msgs.append(AIMessage(content=m.content))
+    # 确保当前用户消息在最后
+    history_msgs.append(HumanMessage(content=user_input))
 
     graph = build_graph()
     initial_state: AgentState = {
