@@ -212,7 +212,7 @@ async def action_node(state: AgentState):
             text = user_text.lower()
             if any(kw in text for kw in ["报修", "维修", "坏了", "故障", "堵了", "漏水", "不制冷", "不工作", "工单"]):
                 wo_type = "repair"
-            elif any(kw in text for kw in ["送", "拿", "要", "需要"]):
+            elif any(kw in text for kw in ["送物", "送东西", "送过来", "拿瓶", "拿个"]):
                 wo_type = "delivery"
 
             if wo_type:
