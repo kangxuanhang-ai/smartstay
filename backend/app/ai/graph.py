@@ -24,7 +24,13 @@ async def chat_node(state: AgentState):
     """闲聊回复"""
     try:
         recent = state["messages"][-10:]
-        resp = await llm.ainvoke([SystemMessage(content="你是智宿云酒店的AI虚拟管家，友好、专业、简洁地回复住客。"), *recent])
+        user_count = sum(1 for m in recent if hasattr(m, "type") and m.type == "human")
+        system_msg = SystemMessage(content=(
+            "你是智宿云酒店的AI虚拟管家，友好、专业、简洁地回复住客。\n"
+            "请根据上下文理解住客的问题并准确回答。不要重复住客的话。\n"
+            f"当前对话中住客已发送 {user_count} 条消息。"
+        ))
+        resp = await llm.ainvoke([system_msg, *recent])
         state["messages"].append(resp)
     except Exception:
         from langchain_core.messages import AIMessage
