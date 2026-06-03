@@ -204,7 +204,8 @@ async def action_node(state: AgentState):
                 for call in resp.tool_calls
             ])
 
-            # Collect cards and feed results back to LLM
+            # Feed results back to LLM (ToolMessages are local, not stored in state)
+            messages.append(resp)  # assistant message with tool_calls
             for call, result in zip(resp.tool_calls, results):
                 cards.append(result["card"])
                 if result["tool_message"]:
@@ -214,6 +215,9 @@ async def action_node(state: AgentState):
         else:
             # MAX_ITERATIONS reached without LLM stopping
             logger.warning(f"action_node hit MAX_ITERATIONS ({MAX_ITERATIONS})")
+
+        # Only store the final AI response in state, not ToolMessages
+        state["messages"] = [HumanMessage(content=user_text), messages[-1]]
 
         # Keyword fallback if no tools were called at all
         if not cards:
@@ -236,7 +240,6 @@ async def action_node(state: AgentState):
                             await _broadcast_work_order(wo_args, str(result))
                             break
 
-        state["messages"] = messages
     except Exception as e:
         logger.error(f"action_node failed: {e}", exc_info=True)
         from langchain_core.messages import AIMessage
