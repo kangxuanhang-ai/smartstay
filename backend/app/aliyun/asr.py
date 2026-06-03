@@ -1,4 +1,4 @@
-"""阿里云语音识别（NLS REST API）封装"""
+"""阿里云语音识别（一句话识别 REST API）封装"""
 
 import base64
 import hashlib
@@ -12,7 +12,7 @@ import httpx
 from app.core.config import settings
 
 # 阿里云一句话识别 REST API
-_ASR_URL = "https://nls-gateway.cn-shanghai.aliyuncs.com/rest/v1/asr"
+_ASR_URL = "https://nls-gateway.cn-shanghai.aliyuncs.com/stream/v1/asr"
 _TOKEN_URL = "https://nls-meta.cn-shanghai.aliyuncs.com/"
 
 _FORMAT_MAP = {
@@ -80,34 +80,28 @@ async def transcribe_audio(audio_bytes: bytes, audio_format: str = "m4a") -> str
     token = await _get_token()
 
     nls_format = _FORMAT_MAP.get(audio_format, "aac")
-    audio_b64 = base64.b64encode(audio_bytes).decode()
 
-    # 一句话识别 REST API：JSON body 包含音频数据
-    request_body = {
+    # 一句话识别 REST API：query params + raw audio bytes in body
+    params = {
         "appkey": settings.ALIYUN_ASR_APP_KEY,
-        "token": token,
         "format": nls_format,
         "sample_rate": 16000,
         "enable_punctuation_prediction": True,
         "enable_inverse_text_normalization": True,
-        "enable_voice_detection": True,
-        "audio_data": audio_b64,
     }
 
     headers = {
-        "Content-Type": "application/json",
+        "Content-Type": "application/octet-stream",
+        "X-NLS-Token": token,
     }
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
             _ASR_URL,
-            json=request_body,
+            params=params,
+            content=audio_bytes,
             headers=headers,
         )
-
-        if resp.status_code == 404:
-            raise RuntimeError(f"ASR API 端点不存在 (404)，请确认阿里云智能语音交互服务已开通")
-
         resp.raise_for_status()
         result = resp.json()
 
