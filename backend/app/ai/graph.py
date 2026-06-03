@@ -254,7 +254,11 @@ def build_graph():
     async def route_by_intent(state: AgentState):
         last_msg = state["messages"][-1] if state["messages"] else None
         user_text = last_msg.content if last_msg else ""
-        intent = await classify_intent(user_text)
+        try:
+            intent = await classify_intent(user_text)
+        except Exception as e:
+            logger.error(f"classify_intent failed: {e}")
+            intent = "chat"
         state["intent"] = intent
         print(f"[GRAPH-PRINT] route_by_intent: '{user_text[:30]}' → {intent}", flush=True)
         return intent
