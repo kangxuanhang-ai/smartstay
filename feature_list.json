@@ -1,7 +1,7 @@
 {
   "project": "SmartStay (智宿云)",
-  "last_updated": "2026-06-02",
-  "active_feature": "F014",
+  "last_updated": "2026-06-03",
+  "active_feature": null,
   "features": [
     {
       "id": "F001",
@@ -167,6 +167,21 @@
         "flutter analyze passes on all files"
       ],
       "notes": "Voice input (阿里云 ASR) deferred to follow-up. All 12 tasks across 3 phases completed."
+    },
+    {
+      "id": "F015",
+      "name": "AI Agent 高级优化",
+      "description": "3-phase backend optimization: code quality (dead code cleanup, parallel tools, WS dedup, intent classification fix), multi-step agent loop (MAX_ITERATIONS=5 with ToolMessage feedback), conversation memory (last 10 messages to LLM)",
+      "status": "done",
+      "dependencies": ["F004"],
+      "spec": "docs/superpowers/specs/2026-06-03-ai-agent-optimization-design.md",
+      "evidence": [
+        "Phase 1: Removed dead code (classify_node, process_input_node), parallel tool execution (asyncio.gather), extracted _broadcast_work_order and _execute_single_tool helpers, split intent keywords into strong/weak",
+        "Phase 2: action_node rewritten with MAX_ITERATIONS=5 loop, ToolMessage feedback to LLM, loop exits when LLM stops calling tools",
+        "Phase 3: chat_node passes last 10 messages, knowledge_node passes last 5 messages + RAG context",
+        "py_compile passes on all changes",
+        "Only graph.py and tools.py modified, C-end Flutter unaffected"
+      ]
     }
   ],
   "upcoming": [
