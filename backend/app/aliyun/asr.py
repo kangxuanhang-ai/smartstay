@@ -1,6 +1,5 @@
-"""阿里云实时语音识别（NLS REST API）封装"""
+"""阿里云语音识别（NLS REST API）封装"""
 
-import asyncio
 import base64
 import hashlib
 import hmac
@@ -12,7 +11,8 @@ import httpx
 
 from app.core.config import settings
 
-_ASR_URL = "https://nls-gateway.cn-shanghai.aliyuncs.com/streaming/v1/asr"
+# 阿里云一句话识别 REST API
+_ASR_URL = "https://nls-gateway.cn-shanghai.aliyuncs.com/rest/v1/asr"
 _TOKEN_URL = "https://nls-meta.cn-shanghai.aliyuncs.com/"
 
 _FORMAT_MAP = {
@@ -58,11 +58,11 @@ async def _get_token() -> str:
 
 async def transcribe_audio(audio_bytes: bytes, audio_format: str = "m4a") -> str:
     """
-    调用阿里云实时语音识别 REST API，返回识别文字。
+    调用阿里云一句话识别 REST API，返回识别文字。
 
     Args:
         audio_bytes: 音频文件字节数据
-        audio_format: 音频格式 (m4a/wav/mp3)
+        audio_format: 音频格式 (m4a/wav/mp3/webm)
 
     Returns:
         识别出的文字
@@ -82,7 +82,8 @@ async def transcribe_audio(audio_bytes: bytes, audio_format: str = "m4a") -> str
     nls_format = _FORMAT_MAP.get(audio_format, "aac")
     audio_b64 = base64.b64encode(audio_bytes).decode()
 
-    payload = {
+    # 一句话识别 REST API：JSON body 包含音频数据
+    request_body = {
         "appkey": settings.ALIYUN_ASR_APP_KEY,
         "token": token,
         "format": nls_format,
@@ -90,6 +91,7 @@ async def transcribe_audio(audio_bytes: bytes, audio_format: str = "m4a") -> str
         "enable_punctuation_prediction": True,
         "enable_inverse_text_normalization": True,
         "enable_voice_detection": True,
+        "audio_data": audio_b64,
     }
 
     headers = {
@@ -99,10 +101,13 @@ async def transcribe_audio(audio_bytes: bytes, audio_format: str = "m4a") -> str
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
             _ASR_URL,
-            params=payload,
-            content=audio_b64,
+            json=request_body,
             headers=headers,
         )
+
+        if resp.status_code == 404:
+            raise RuntimeError(f"ASR API 端点不存在 (404)，请确认阿里云智能语音交互服务已开通")
+
         resp.raise_for_status()
         result = resp.json()
 
