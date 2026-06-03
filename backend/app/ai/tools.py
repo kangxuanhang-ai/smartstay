@@ -21,19 +21,23 @@ llm_classifier = ChatDeepSeek(
 )
 
 
-_ACTION_KEYWORDS = [
+_STRONG_ACTION_KEYWORDS = [
     "报修", "工单", "维修", "送物", "配送", "打扫", "清洁",
     "坏了", "故障", "不工作", "不制冷", "不热", "漏水", "堵塞", "堵了",
     "开灯", "关灯", "开窗帘", "关窗帘", "调温度", "调空调",
-    "帮我", "请帮", "麻烦", "需要",
 ]
+
+_WEAK_ACTION_KEYWORDS = ["帮我", "请帮", "麻烦", "需要"]
 
 
 def _keyword_fallback(user_input: str) -> str | None:
-    """关键词兜底：LLM 分类器不稳定时，用关键词强制判定 action"""
+    """Keyword fallback: strong keywords match directly, weak keywords need an action word."""
     text = user_input.lower()
-    if any(kw in text for kw in _ACTION_KEYWORDS):
+    if any(kw in text for kw in _STRONG_ACTION_KEYWORDS):
         return "action"
+    if any(kw in text for kw in _WEAK_ACTION_KEYWORDS):
+        if any(op in text for op in ["开", "关", "调", "修", "送", "打扫", "清洁"]):
+            return "action"
     return None
 
 

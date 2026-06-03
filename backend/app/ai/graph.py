@@ -2,11 +2,12 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import SystemMessage
 from langchain_deepseek import ChatDeepSeek
+import asyncio
 import logging
 
 from app.core.config import settings
 from app.ai.state import AgentState
-from app.ai.tools import llm_classifier, classify_intent, build_tools
+from app.ai.tools import classify_intent, build_tools
 from app.ai.guard import execute_security_guard
 
 logger = logging.getLogger(__name__)
@@ -17,16 +18,6 @@ llm = ChatDeepSeek(
     temperature=0.3,
     streaming=True,
 )
-
-
-async def process_input_node(state: AgentState):
-    """预处理：不做额外处理，透传给分类器"""
-    return state
-
-
-def classify_node(state: AgentState):
-    """意图分类路由节点"""
-    return state
 
 
 async def chat_node(state: AgentState):
@@ -69,6 +60,78 @@ async def knowledge_node(state: AgentState):
     return state
 
 
+def _get_card_title(tool_name: str) -> str:
+    titles = {
+        "control_device_tool": "🔧 空调调节中",
+        "create_work_order_tool": "📦 报修工单已创建",
+        "query_knowledge_tool": "📚 知识库检索",
+    }
+    return titles.get(tool_name, f"已执行：{tool_name}")
+
+
+async def _broadcast_work_order(tool_args: dict, result: str):
+    """Broadcast work order creation via WebSocket."""
+    if "工单已创建" not in str(result):
+        return
+    try:
+        import re
+        from app.ws.manager import manager as ws_manager
+        from app.core.database import async_session
+        from sqlmodel import select
+        from app.models.room import Room
+        import uuid as _uuid
+
+        room_id = tool_args.get("room_id", "")
+        if not room_id:
+            return
+
+        async with async_session() as db:
+            room_res = await db.execute(select(Room.room_number).where(Room.id == _uuid.UUID(room_id)))
+            room_number = room_res.scalar_one_or_none() or "未知"
+
+        order_id_match = re.search(r"\[order_id=([^\]]+)\]", str(result))
+        order_id = order_id_match.group(1) if order_id_match else ""
+
+        await ws_manager.broadcast_biz({
+            "event": "work_order.new",
+            "data": {
+                "order_id": order_id,
+                "room_number": room_number,
+                "type": tool_args.get("type", "repair"),
+                "content": tool_args.get("content", ""),
+            },
+        })
+    except Exception as e:
+        logger.warning(f"WS broadcast failed: {e}")
+
+
+async def _execute_single_tool(call, tools, state, user_text):
+    """Execute a single tool call, return card and optional tool message."""
+    tool_name = call["name"]
+    tool_args = dict(call["args"])  # copy to avoid mutating original
+
+    guard_result = await execute_security_guard(
+        tool_name, state["role"], tool_args, user_text, user_id=state.get("user_id", "")
+    )
+    if not guard_result["ok"]:
+        return {"card": {"type": "error", "title": guard_result["error"]}, "tool_message": None}
+
+    # Inject room_id from state (not from LLM)
+    if tool_name in ("control_device_tool", "create_work_order_tool") and state.get("room_id"):
+        tool_args["room_id"] = state["room_id"]
+
+    for t in tools:
+        if t.name == tool_name:
+            result = await t.ainvoke(tool_args)
+            card_title = _get_card_title(tool_name)
+            return {
+                "card": {"type": "success", "title": card_title, "detail": str(result)},
+                "tool_message": (call.get("id", ""), str(result)),
+            }
+
+    return {"card": {"type": "error", "title": f"未知工具：{tool_name}"}, "tool_message": None}
+
+
 async def action_node(state: AgentState):
     """Tool Calling 执行节点"""
     last_msg = state["messages"][-1] if state["messages"] else None
@@ -102,61 +165,15 @@ async def action_node(state: AgentState):
         resp = await llm_with_tools.ainvoke([system_msg, HumanMessage(content=user_text)])
 
         if resp.tool_calls:
-            for call in resp.tool_calls:
-                tool_name = call["name"]
-                tool_args = call["args"]
-
-                # 安全拦截
-                guard_result = await execute_security_guard(tool_name, state["role"], tool_args, user_text, user_id=state.get("user_id", ""))
-                if not guard_result["ok"]:
-                    cards.append({"type": "error", "title": guard_result["error"]})
-                    continue
-
-                # 从 state 注入 room_id（杜绝LLM幻觉）
-                if tool_name == "control_device_tool" and state.get("room_id"):
-                    tool_args["room_id"] = state["room_id"]
-                if tool_name == "create_work_order_tool" and state.get("room_id"):
-                    tool_args["room_id"] = state["room_id"]
-
-                # 执行工具
-                for t in tools:
-                    if t.name == tool_name:
-                        result = await t.ainvoke(tool_args)
-                        card_title = (
-                            "🔧 空调调节中" if tool_name == "control_device_tool"
-                            else "📦 报修工单已创建" if tool_name == "create_work_order_tool"
-                            else "📚 知识库检索" if tool_name == "query_knowledge_tool"
-                            else f"已执行：{tool_name}"
-                        )
-                        cards.append({"type": "success", "title": card_title, "detail": str(result)})
-
-                        # 工单创建成功后广播 WebSocket 通知前台
-                        if tool_name == "create_work_order_tool" and "工单已创建" in str(result):
-                            try:
-                                import re as _re
-                                from app.ws.manager import manager as ws_manager
-                                from app.core.database import async_session
-                                from sqlmodel import select as _select
-                                from app.models.room import Room as _Room
-                                import uuid as _uuid
-                                async with async_session() as _db:
-                                    room_res = await _db.execute(_select(_Room.room_number).where(_Room.id == _uuid.UUID(tool_args["room_id"])))
-                                    room_number = room_res.scalar_one_or_none() or "未知"
-                                _order_id_match = _re.search(r"\[order_id=([^\]]+)\]", str(result))
-                                _order_id = _order_id_match.group(1) if _order_id_match else ""
-                                await ws_manager.broadcast_biz({
-                                    "event": "work_order.new",
-                                    "data": {
-                                        "order_id": _order_id,
-                                        "room_number": room_number,
-                                        "type": tool_args.get("type", "repair"),
-                                        "content": tool_args.get("content", ""),
-                                    },
-                                })
-                                print("[WS-PRINT] 广播完成", flush=True)
-                            except Exception as e:
-                                print(f"[WS-PRINT] 广播失败: {type(e).__name__}: {e}", flush=True)
-                        break
+            results = await asyncio.gather(*[
+                _execute_single_tool(call, tools, state, user_text)
+                for call in resp.tool_calls
+            ])
+            for call, result in zip(resp.tool_calls, results):
+                cards.append(result["card"])
+                if result["tool_message"]:
+                    _, detail = result["tool_message"]
+                    await _broadcast_work_order(call["args"], detail)
 
         # 兜底：LLM 没调用任何 tool 时，根据关键词强制执行
         if not cards:
@@ -176,27 +193,7 @@ async def action_node(state: AgentState):
                             result = await t.ainvoke(wo_args)
                             label = "📦 报修工单已创建" if wo_type == "repair" else "📦 送物工单已创建"
                             cards.append({"type": "success", "title": label, "detail": str(result)})
-                            # 广播 WebSocket 通知前台
-                            try:
-                                from app.ws.manager import manager as ws_manager
-                                from app.core.database import async_session
-                                from sqlmodel import select as _select
-                                from app.models.room import Room as _Room
-                                import uuid as _uuid
-                                async with async_session() as _db:
-                                    room_res = await _db.execute(_select(_Room.room_number).where(_Room.id == _uuid.UUID(wo_args["room_id"])))
-                                    room_number = room_res.scalar_one_or_none() or "未知"
-                                await ws_manager.broadcast_biz({
-                                    "event": "work_order.new",
-                                    "data": {
-                                        "room_number": room_number,
-                                        "type": wo_type,
-                                        "content": user_text,
-                                    },
-                                })
-                                print("[WS-PRINT] 兜底广播完成", flush=True)
-                            except Exception as e:
-                                print(f"[WS-PRINT] 兜底广播失败: {type(e).__name__}: {e}", flush=True)
+                            await _broadcast_work_order(wo_args, str(result))
                             break
 
         state["messages"].append(resp)
@@ -212,13 +209,9 @@ async def action_node(state: AgentState):
 def build_graph():
     workflow = StateGraph(AgentState)
 
-    workflow.add_node("process_input", process_input_node)
-    workflow.add_node("classify", classify_node)
     workflow.add_node("chat_response", chat_node)
     workflow.add_node("knowledge_response", knowledge_node)
     workflow.add_node("action_response", action_node)
-
-    workflow.add_edge(START, "process_input")
 
     # 条件路由：语义分类
     async def route_by_intent(state: AgentState):
@@ -230,7 +223,7 @@ def build_graph():
         return intent
 
     workflow.add_conditional_edges(
-        "process_input",
+        START,
         route_by_intent,
         {
             "chat": "chat_response",
