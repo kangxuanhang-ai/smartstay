@@ -170,6 +170,8 @@ async def action_node(state: AgentState):
             "- create_work_order_tool: 创建送物或报修工单\n"
             "- query_knowledge_tool: 检索酒店知识库\n"
             "- modify_room_price_tool: 修改房价（仅店长可用）\n\n"
+            "⚠️ room_id 由系统自动注入，不要在工具调用中指定 room_id 参数！\n"
+            "即使住客提到房间号（如「202房间」），也不要传 room_id，系统会自动处理。\n\n"
             "重要规则：\n"
             "- 如果住客同时提出多个操作请求（如「空调调到20度并且把窗帘关闭」），必须返回多个tool_calls，每个操作一个tool_call\n"
             "- 每个tool_call对应一个独立的操作，不要合并\n\n"
