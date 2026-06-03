@@ -93,6 +93,13 @@
 - New files: typing_indicator.dart, quick_chips.dart, chat_card.dart (widget + model), session_list_page.dart, sse_stream_handler.dart, chat_stream_service.dart
 - Backend: GET /api/ai/chat/sessions endpoint added
 
+### F016 — C 端语音输入 (2026-06-03)
+- 6 tasks completed across backend and Flutter
+- Backend: AliyunASR service + POST /api/ai/chat/transcribe endpoint + config settings
+- Flutter: VoiceService (Record package), ChatBloc voice events/state, recording logic, mic button UI (long-press + animation)
+- Files: asr.py, ai.py, settings.py, voice_service.dart, chat_bloc.dart, ai_chat_page.dart
+- py_compile passes, flutter analyze passes (no new errors)
+
 ### F006 — C-end Navigation Redesign (planned)
 - Spec: `docs/superpowers/specs/2026-05-29-c-end-navigation-redesign-design.md`
 - Plan: `docs/superpowers/plans/2026-05-29-c-end-navigation-redesign-plan.md`

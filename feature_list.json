@@ -182,6 +182,25 @@
         "py_compile passes on all changes",
         "Only graph.py and tools.py modified, C-end Flutter unaffected"
       ]
+    },
+    {
+      "id": "F016",
+      "name": "C 端语音输入 (阿里云 ASR)",
+      "description": "Voice input for C-end AI chat: long-press mic button to record, release to transcribe via Aliyun ASR, text fills chat input. 6 tasks: backend config + ASR service, backend transcribe endpoint, Flutter VoiceService, Flutter BLoC events/state, Flutter BLoC recording logic, Flutter mic button UI",
+      "status": "done",
+      "dependencies": ["F003", "F004"],
+      "evidence": [
+        "Task 1: Backend config (ALIYUN_AK_ID, ALIYUN_AK_SECRET in settings.py) + AliyunASR service (backend/app/aliyun/asr.py)",
+        "Task 2: Backend POST /api/ai/chat/transcribe endpoint (accepts audio file, returns text)",
+        "Task 3: Flutter VoiceService (lib/core/voice_service.dart) — Record package integration, permission handling",
+        "Task 4: Flutter ChatBloc events (VoiceInputRequested, VoiceInputCancelled, VoiceInputCompleted) + state (isRecording, isTranscribing, voiceError)",
+        "Task 5: Flutter ChatBloc recording logic — onRecordingComplete calls VoiceService.transcribe, auto-fills messageController",
+        "Task 6: Flutter mic button UI — long-press gesture, recording animation (pulsing red), transcription loading state",
+        "py_compile passes on backend changes",
+        "flutter analyze passes (no new errors from voice input code)",
+        "Modified files: backend/app/core/settings.py, backend/app/aliyun/asr.py, backend/app/api/ai.py, smartstay-flutter/lib/core/voice_service.dart, smartstay-flutter/lib/blocs/chat/chat_bloc.dart, smartstay-flutter/lib/pages/ai_chat/ai_chat_page.dart"
+      ],
+      "notes": "Voice input deferred from F014 (C-end AI chat enhancement), implemented as standalone F016"
     }
   ],
   "upcoming": [
