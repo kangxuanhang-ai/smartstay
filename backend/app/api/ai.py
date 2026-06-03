@@ -20,6 +20,7 @@ from app.models.ai_log import AIPricingLog
 from app.ai.graph import build_graph
 from app.ai.state import AgentState
 from app.schemas.ai import ChatRequest, SafetyThresholdRequest
+from app.aliyun.asr import transcribe_audio
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
@@ -314,3 +315,27 @@ async def set_safety_threshold(
     import app.ai.guard as guard
     guard.PRICE_MAX_FACTOR = 1 + max(0, min(100, int(threshold))) / 100
     return {"message": f"安全阈值已更新为 {threshold}%", "factor": guard.PRICE_MAX_FACTOR, "note": "重启服务器后需重新设置"}
+
+
+@router.post("/transcribe")
+async def transcribe(
+    audio: UploadFile = File(...),
+    current_user: Guest = Depends(get_current_user),
+):
+    """语音识别：接收音频文件，返回识别文字"""
+    contents = await audio.read()
+    if len(contents) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="音频文件过大，最大 10MB")
+
+    allowed_formats = {"m4a", "wav", "mp3", "aac", "ogg", "amr"}
+    ext = audio.filename.rsplit(".", 1)[-1].lower() if audio.filename and "." in audio.filename else ""
+    if ext not in allowed_formats:
+        raise HTTPException(status_code=400, detail=f"不支持的音频格式: {ext}")
+
+    try:
+        text = await transcribe_audio(contents, audio_format=ext)
+        return {"text": text}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
