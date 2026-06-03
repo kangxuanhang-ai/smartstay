@@ -22,10 +22,9 @@ llm = ChatDeepSeek(
 
 async def chat_node(state: AgentState):
     """闲聊回复"""
-    last_msg = state["messages"][-1] if state["messages"] else None
-    user_text = last_msg.content if last_msg else ""
     try:
-        resp = await llm.ainvoke([SystemMessage(content="你是智宿云酒店的AI虚拟管家，友好、专业、简洁地回复住客。"), *state["messages"]])
+        recent = state["messages"][-10:]
+        resp = await llm.ainvoke([SystemMessage(content="你是智宿云酒店的AI虚拟管家，友好、专业、简洁地回复住客。"), *recent])
         state["messages"].append(resp)
     except Exception:
         from langchain_core.messages import AIMessage
@@ -44,11 +43,13 @@ async def knowledge_node(state: AgentState):
         docs = await query_vector_store(user_text)
         context = "\n".join(docs) if docs else "知识库无匹配信息"
 
+        recent = state["messages"][-5:]
+        recent_text = "\n".join(f"{m.type}: {m.content}" for m in recent if hasattr(m, "content") and m.content)
         prompt = (
             "你是智宿云酒店的AI虚拟管家。请严格依据以下酒店知识库信息回答住客问题。"
             "如果知识库没有相关信息，请诚实告知住客并建议联系前台。\n\n"
             f"【酒店知识库】\n{context}\n\n"
-            f"【住客问题】{user_text}"
+            f"【最近对话】\n{recent_text}"
         )
         resp = await llm.ainvoke(prompt)
         state["messages"].append(resp)
