@@ -74,7 +74,7 @@ async def classify_intent(user_input: str) -> str:
     )
     resp = await llm_classifier.ainvoke(prompt)
     result = resp.content.strip().lower()
-    print(f"[CLASSIFY-PRINT] LLM分类结果: '{user_input[:30]}' → {result}", flush=True)
+    print(f"[CLASSIFY-PRINT] LLM原始回复: '{resp.content}' → 处理后: '{result}'", flush=True)
     if result in ("chat", "knowledge", "action"):
         return result
     return "chat"
