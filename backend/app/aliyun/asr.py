@@ -49,7 +49,7 @@ async def _get_token() -> str:
     ).decode()
     params["Signature"] = signature
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(proxy=None) as client:
         resp = await client.get(_TOKEN_URL, params=params)
         resp.raise_for_status()
         data = resp.json()
@@ -95,7 +95,7 @@ async def transcribe_audio(audio_bytes: bytes, audio_format: str = "m4a") -> str
         "X-NLS-Token": token,
     }
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=30.0, proxy=None) as client:
         resp = await client.post(
             _ASR_URL,
             params=params,
