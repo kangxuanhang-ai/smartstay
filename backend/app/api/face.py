@@ -1,7 +1,9 @@
 ﻿import uuid
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -22,6 +24,7 @@ from app.aliyun.face import (
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/api/face", tags=["face"])
 
@@ -81,7 +84,8 @@ async def register_face(
 
 
 @router.post("/search")
-async def search_face_login(file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
+@limiter.limit("10/minute")
+async def search_face_login(request: Request, file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
     image_bytes = await file.read()
     logger.debug("received %d bytes", len(image_bytes))
     # 1. 活体检测

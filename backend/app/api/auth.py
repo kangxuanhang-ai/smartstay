@@ -1,5 +1,7 @@
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
@@ -23,11 +25,13 @@ from app.schemas.auth import (
     UserInfo,
 )
 
+limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=TokenResponse)
-async def c_login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
+@limiter.limit("5/minute")
+async def c_login(request: Request, req: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Guest).where(
             or_(Guest.id_card == req.id_card, Guest.phone == req.id_card),
@@ -45,7 +49,8 @@ async def c_login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/login/biz", response_model=TokenResponse)
-async def b_login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
+@limiter.limit("5/minute")
+async def b_login(request: Request, req: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Staff).where(
             or_(Staff.id_card == req.id_card, Staff.phone == req.id_card),

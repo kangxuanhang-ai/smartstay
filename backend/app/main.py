@@ -1,10 +1,15 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
+import logging
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
+from app.core.config import settings
 from app.core.database import init_db
 from app.core.seed import seed_default_staff, seed_default_rooms, seed_hotel_info, seed_facilities
 from app.api import auth, rooms, orders, work_orders, admin, consumptions
@@ -15,21 +20,24 @@ from app.api.rag import router as rag_router
 from app.api.alipay import router as alipay_router
 from app.ws.manager import manager
 
+logger = logging.getLogger(__name__)
 scheduler = AsyncIOScheduler()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    await seed_default_staff()
-    await seed_default_rooms()
-    await seed_hotel_info()
-    await seed_facilities()
+
+    # 生产环境不自动 seed（通过独立脚本手动执行）
+    if settings.ENVIRONMENT != "production":
+        await seed_default_staff()
+        await seed_default_rooms()
+        await seed_hotel_info()
+        await seed_facilities()
 
     # Create Aliyun face database on startup (safe to call repeatedly)
     try:
         from app.aliyun.face import create_face_db
-        from app.core.config import settings
         import asyncio
         await asyncio.to_thread(create_face_db, settings.ALIYUN_FACE_DB_NAME)
     except Exception:
@@ -46,19 +54,25 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown()
 
 
-app = FastAPI(title="SmartStay API", version="0.3.0", lifespan=lifespan)
+limiter = Limiter(key_func=get_remote_address)
+app = FastAPI(title="SmartStay API", version="1.0.0", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled exception: %s", exc)
+    detail = str(exc) if settings.ENVIRONMENT != "production" else "请联系管理员"
     return JSONResponse(
         status_code=500,
-        content={"code": 500, "message": "服务器内部错误", "detail": str(exc)},
+        content={"code": 500, "message": "服务器内部错误", "detail": detail},
     )
 
+_origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",")]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -113,4 +127,4 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "version": "0.2.0"}
+    return {"status": "ok", "version": "1.0.0"}

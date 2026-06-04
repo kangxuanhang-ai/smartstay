@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, delete, update
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import require_role
 from app.core.security import get_password_hash
@@ -198,7 +199,9 @@ async def trigger_audit(
         result = await generate_audit_report()
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"审计触发失败: {type(e).__name__}: {str(e)}")
+        import logging
+        logging.getLogger(__name__).exception("审计触发失败")
+        raise HTTPException(status_code=500, detail="审计触发失败，请查看服务器日志")
 
 
 # ── 模拟门锁打开 ──
@@ -317,6 +320,8 @@ async def reset_data(
     current_user: Staff = Depends(require_role("admin")),
     db: AsyncSession = Depends(get_db),
 ):
+    if settings.ENVIRONMENT == "production":
+        raise HTTPException(status_code=403, detail="生产环境不允许重置数据")
     # 保留当前 admin 用户的 token 有效，只删除其他 Staff
     await db.execute(delete(Staff).where(Staff.id != current_user.id))
     tables = [ChatMessage, ChatSession, AISecurityLog, RAGEmbedding, RAGDocument,

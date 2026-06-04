@@ -21,18 +21,6 @@ async def init_db():
         from sqlalchemy import text
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 
-        # 迁移：rag_embeddings 表向量维度从 1536 改为 384，需要重建
-        try:
-            await conn.execute(text("DROP TABLE IF EXISTS rag_embeddings CASCADE"))
-        except Exception:
-            pass
-
-        # 迁移：users 表拆分为 guests + staff
-        try:
-            await conn.execute(text("DROP TABLE IF EXISTS users CASCADE"))
-        except Exception:
-            pass
-
         # 迁移：guests 表新增 face_id + face_registered
         try:
             await conn.execute(text("ALTER TABLE guests ADD COLUMN IF NOT EXISTS face_id VARCHAR(64)"))

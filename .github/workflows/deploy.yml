@@ -1,0 +1,57 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install backend deps
+        working-directory: backend
+        run: poetry install
+
+      - name: Backend type check
+        working-directory: backend
+        run: poetry run python -m py_compile app/main.py
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Frontend type check & build
+        working-directory: frontend
+        run: npm ci && npm run build
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          script: |
+            cd /opt/smartstay
+            git pull origin main
+            docker compose build --no-cache
+            docker compose up -d
+            sleep 10
+            curl -f http://localhost/api/ || true
+            curl -f http://localhost:8765/health || exit 1
+            docker image prune -f

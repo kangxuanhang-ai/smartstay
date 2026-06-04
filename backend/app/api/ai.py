@@ -235,7 +235,9 @@ async def ai_chat(
                             yield f"data: {json.dumps({'type': 'text', 'content': ai_content}, ensure_ascii=False)}\n\n"
 
         except Exception as exc:
-            yield f"data: {json.dumps({'type': 'text', 'content': f'抱歉，系统暂时无法回答，请联系前台。{exc}'}, ensure_ascii=False)}\n\n"
+            import logging
+            logging.getLogger(__name__).exception("AI chat error")
+            yield f"data: {json.dumps({'type': 'text', 'content': '抱歉，系统暂时无法回答，请联系前台。'}, ensure_ascii=False)}\n\n"
 
         # 保存 AI 回复
         ai_msg = ChatMessage(

@@ -1,13 +1,17 @@
 from pydantic_settings import BaseSettings
 
 
+import sys
+
 class Settings(BaseSettings):
+    ENVIRONMENT: str = "development"
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/smartstay"
     DATABASE_URL_SYNC: str = "postgresql://postgres:postgres@localhost:5432/smartstay"
     REDIS_URL: str = "redis://localhost:6379/0"
     SECRET_KEY: str = "smartstay-dev-secret-key-change-in-production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    ALLOWED_ORIGINS: str = "*"
     DEEPSEEK_API_KEY: str = ""
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
 
@@ -22,10 +26,10 @@ class Settings(BaseSettings):
     ALIPAY_PRIVATE_KEY: str = ""
     ALIPAY_PUBLIC_KEY: str = ""
     ALIPAY_GATEWAY_URL: str = "https://openapi-sandbox.dl.alipaydev.com/gateway.do"
-    ALIPAY_NOTIFY_URL: str = "http://localhost:8000/api/alipay/notify"
+    ALIPAY_NOTIFY_URL: str = "http://localhost:8765/api/alipay/notify"
     ALIPAY_RETURN_URL: str = "http://localhost:5173/front-desk/rooms"
 
-    # SerpAPI (????)
+    # SerpAPI
     SERPAPI_KEY: str = ""
 
     class Config:
@@ -33,3 +37,9 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# 生产环境下 SECRET_KEY 不能是默认值
+_DEFAULT_SECRET_KEY = "smartstay-dev-secret-key-change-in-production"
+if settings.ENVIRONMENT == "production" and settings.SECRET_KEY == _DEFAULT_SECRET_KEY:
+    print("FATAL: SECRET_KEY is still the default value in production! Set a real secret in .env", file=sys.stderr)
+    sys.exit(1)
