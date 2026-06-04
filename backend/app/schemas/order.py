@@ -31,6 +31,8 @@ class BillResponse(BaseModel):
     room_rate: int
     consumptions: list[BillingLine]
     consumption_total: int
+    nights: int = 1
+    daily_rate: int = 0  # 单日房价（分）
     grand_total: int
     deposit_rate: float
 

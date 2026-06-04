@@ -1,11 +1,11 @@
-import uuid
+﻿import uuid
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
 from app.models.user import Staff
-from app.ai.rag import process_and_store, get_all_documents, delete_document
+from app.ai.rag import process_and_store, get_all_documents, delete_document, reindex_all
 
 router = APIRouter(prefix="/api/rag", tags=["rag"])
 
@@ -16,13 +16,13 @@ async def upload_knowledge(
     title: str = Form(""),
     current_user: Staff = Depends(require_role("manager")),
 ):
-    """B端店长上传 Markdown 知识库文档"""
+    """B 端店长上传 Markdown 知识库文档"""
     if not file.filename or not file.filename.endswith(".md"):
         raise HTTPException(status_code=400, detail="仅支持 .md 格式的 Markdown 文件")
 
     content_bytes = await file.read()
     if len(content_bytes) > 5 * 1024 * 1024:  # 5MB limit
-        raise HTTPException(status_code=400, detail="文件过大，最大支持5MB")
+        raise HTTPException(status_code=400, detail="文件过大，最大支持 5MB")
     content = content_bytes.decode("utf-8")
     if not content.strip():
         raise HTTPException(status_code=400, detail="文件内容为空")
@@ -51,3 +51,12 @@ async def remove_document(
 ):
     """删除知识库文档及其所有关联 embeddings"""
     return await delete_document(doc_id)
+
+
+@router.post("/reindex")
+async def reindex_documents(
+    current_user: Staff = Depends(require_role("admin")),
+):
+    """用新的分块策略重新向量化所有知识库文档（仅 admin）"""
+    result = await reindex_all()
+    return {"message": f"重新索引完成，{result['documents']} 个文档，{result['total_chunks']} 个片段", **result}

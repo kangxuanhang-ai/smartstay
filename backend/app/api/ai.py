@@ -1,4 +1,4 @@
-import uuid
+﻿import uuid
 import json
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -17,11 +17,86 @@ from app.models.order import Order
 from app.models.room import Room
 from app.models.chat import ChatSession, ChatMessage
 from app.models.ai_log import AIPricingLog
+from app.models.preference import GuestPreference
 from app.ai.graph import build_graph
 from app.ai.state import AgentState
 from app.schemas.ai import ChatRequest, SafetyThresholdRequest
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
+
+
+# ── 对话摘要 ──
+async def _summarize_messages(messages_text: str) -> str:
+    '""用 LLM 将旧消息压缩为一句话摘要（≤100字）""'
+    try:
+        from app.ai.rag import _get_rewriter
+        llm = _get_rewriter()
+        prompt = (
+            "将以下酒店住客与AI管家的对话历史压缩为一句话摘要（不超过100字）。"
+            "保留关键信息：住客的需求、操作、偏好、问题。\n\n"
+            f"对话历史：\n{messages_text}\n\n"
+            "摘要："
+        )
+        resp = await llm.ainvoke(prompt)
+        return resp.content.strip()[:200]
+    except Exception:
+        return ""
+
+
+async def _build_conversation_summary(session: ChatSession, db: AsyncSession) -> str | None:
+    '""构建对话摘要：首次超20条时生成，后续增量更新""'
+    result = await db.execute(
+        select(ChatMessage)
+        .where(ChatMessage.session_id == session.id)
+        .order_by(ChatMessage.created_at.desc())
+    )
+    all_messages = result.scalars().all()
+
+    if len(all_messages) <= 20:
+        return None
+
+    # 如果已有摘要，只增量追加新消息
+    if session.summary:
+        # 找到摘要之后的新消息（简化：用最近5条）
+        recent_texts = []
+        for m in all_messages[:5]:
+            role = "住客" if m.role == "user" else "小智"
+            recent_texts.append(f"{role}：{m.content[:100]}")
+        new_info = "\n".join(recent_texts)
+        updated = await _summarize_messages(
+            f"已有摘要：{session.summary}\n\n新对话：\n{new_info}"
+        )
+        if updated:
+            session.summary = updated
+            await db.commit()
+        return updated or session.summary
+
+    # 首次生成摘要：用前 N-10 条消息
+    old_messages = all_messages[10:]  # 保留最近10条，摘要旧的
+    old_messages.reverse()  # 时间正序
+    texts = []
+    for m in old_messages[:20]:  # 最多20条参与摘要
+        role = "住客" if m.role == "user" else "小智"
+        texts.append(f"{role}：{m.content[:100]}")
+    messages_text = "\n".join(texts)
+    summary = await _summarize_messages(messages_text)
+    if summary:
+        session.summary = summary
+        await db.commit()
+    return summary
+
+
+# ── 偏好加载 ──
+async def _load_preferences(guest_id: str, db: AsyncSession) -> dict:
+    '""加载住客偏好设置""'
+    try:
+        result = await db.execute(
+            select(GuestPreference).where(GuestPreference.guest_id == uuid.UUID(guest_id))
+        )
+        prefs = result.scalars().all()
+        return {p.key: p.value for p in prefs}
+    except Exception:
+        return {}
 
 
 @router.post("/chat")
@@ -30,7 +105,7 @@ async def ai_chat(
     current_user: Guest = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """SSE 流式对话接口"""
+    '""SSE 流式对话接口""'
     result = await db.execute(
         select(Order).where(
             Order.user_id == current_user.id, Order.status == "checked_in"
@@ -72,6 +147,9 @@ async def ai_chat(
     db.add(user_msg)
     await db.commit()
 
+    # 构建对话摘要（增量，持久化到 session.summary）
+    summary = await _build_conversation_summary(session, db)
+
     # 加载对话历史（最近20条，跳过当前消息本身）
     hist_result = await db.execute(
         select(ChatMessage)
@@ -86,12 +164,14 @@ async def ai_chat(
         if m.role == "user":
             history_msgs.append(HumanMessage(content=m.content))
         elif m.role == "assistant":
-            from langchain_core.messages import AIMessage
             history_msgs.append(AIMessage(content=m.content))
     # 确保当前用户消息在最后
     history_msgs.append(HumanMessage(content=user_input))
 
-    graph = build_graph()
+    # 加载偏好
+    preferences = await _load_preferences(str(current_user.id), db)
+
+    graph = build_graph(web_search_enabled=req.web_search)
     initial_state: AgentState = {
         "messages": history_msgs,
         "user_id": str(current_user.id),
@@ -100,6 +180,8 @@ async def ai_chat(
         "role": "guest" if isinstance(current_user, Guest) else current_user.role,
         "intent": "chat",
         "business_cards": [],
+        "preferences": preferences,
+        "conversation_summary": summary,
     }
 
     async def event_generator():
@@ -117,7 +199,7 @@ async def ai_chat(
                 name = event.get("name", "")
 
                 # 节点开始执行 → 后续的 on_chat_model_stream 都来自实际节点
-                if kind == "on_chain_start" and name in ("chat_response", "knowledge_response", "action_response"):
+                if kind == "on_chain_start" and name in ("chat_response", "knowledge_response", "action_response", "web_search_response"):
                     node_executed = True
 
                 if kind == "on_chat_model_stream" and node_executed:
@@ -134,26 +216,26 @@ async def ai_chat(
                     for card in cards:
                         yield f"data: {json.dumps({'type': 'card', 'card': card}, ensure_ascii=False)}\n\n"
 
-                # 兜底：从 knowledge_response / chat_response 节点 output 中提取 AI 回复
-                elif kind == "on_chain_end" and name in ("knowledge_response", "chat_response"):
-                    output = event["data"].get("output", {})
-                    messages = output.get("messages", [])
-                    # 从后往前找最后一条 AIMessage
-                    ai_content = None
-                    for msg in reversed(messages):
-                        if isinstance(msg, AIMessage) and msg.content:
-                            ai_content = msg.content
-                            break
-                        content = getattr(msg, "content", None)
-                        if isinstance(msg, dict) and msg.get("type") == "ai" and content:
-                            ai_content = content
-                            break
-                    if ai_content:
-                        final_text = ai_content
-                        yield f"data: {json.dumps({'type': 'text', 'content': ai_content}, ensure_ascii=False)}\n\n"
+                # 兜底：从 knowledge_response / chat_response / web_search_response 节点 output 中提取 AI 回复
+                elif kind == "on_chain_end" and name in ("knowledge_response", "chat_response", "web_search_response"):
+                    if not final_text:  # 只在流式未发送时兜底
+                        output = event["data"].get("output", {})
+                        messages = output.get("messages", [])
+                        ai_content = None
+                        for msg in reversed(messages):
+                            if isinstance(msg, AIMessage) and msg.content:
+                                ai_content = msg.content
+                                break
+                            content = getattr(msg, "content", None)
+                            if isinstance(msg, dict) and msg.get("type") == "ai" and content:
+                                ai_content = content
+                                break
+                        if ai_content:
+                            final_text = ai_content
+                            yield f"data: {json.dumps({'type': 'text', 'content': ai_content}, ensure_ascii=False)}\n\n"
 
         except Exception as exc:
-            yield f"data: {json.dumps({'type': 'text', 'content': f'抱歉，系统暂时无法回答，请联系前台。({exc})'}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'text', 'content': f'抱歉，系统暂时无法回答，请联系前台。{exc}'}, ensure_ascii=False)}\n\n"
 
         # 保存 AI 回复
         ai_msg = ChatMessage(
@@ -209,7 +291,7 @@ async def get_chat_sessions(
     current_user: Guest = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """列出当前住客的所有聊天会话"""
+    '""列出当前住客的所有聊天会话""'
     result = await db.execute(
         select(ChatSession)
         .where(
@@ -237,6 +319,74 @@ async def get_chat_sessions(
             "status": s.status,
         })
     return out
+
+
+# ── 偏好 API ──
+@router.get("/preferences")
+async def get_preferences(
+    current_user: Guest = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    '""获取当前住客的所有偏好设置""'
+    result = await db.execute(
+        select(GuestPreference).where(GuestPreference.guest_id == current_user.id)
+    )
+    prefs = result.scalars().all()
+    return {p.key: p.value for p in prefs}
+
+
+@router.post("/preferences")
+async def save_preference(
+    body: dict,
+    current_user: Guest = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    '""保存/更新偏好设置""'
+    key = body.get("key")
+    value = body.get("value")
+    if not key or value is None:
+        raise HTTPException(status_code=400, detail="key 和 value 必填")
+
+    result = await db.execute(
+        select(GuestPreference).where(
+            GuestPreference.guest_id == current_user.id,
+            GuestPreference.key == key,
+        )
+    )
+    existing = result.scalar_one_or_none()
+    if existing:
+        existing.value = str(value)
+        existing.updated_at = cst_now()
+    else:
+        pref = GuestPreference(
+            guest_id=current_user.id,
+            key=key,
+            value=str(value),
+            updated_at=cst_now(),
+        )
+        db.add(pref)
+    await db.commit()
+    return {"ok": True}
+
+
+@router.delete("/preferences/{key}")
+async def delete_preference(
+    key: str,
+    current_user: Guest = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    '""删除指定偏好""'
+    result = await db.execute(
+        select(GuestPreference).where(
+            GuestPreference.guest_id == current_user.id,
+            GuestPreference.key == key,
+        )
+    )
+    pref = result.scalar_one_or_none()
+    if pref:
+        await db.delete(pref)
+        await db.commit()
+    return {"ok": True}
 
 
 @router.get("/pricing/logs")
@@ -309,7 +459,7 @@ async def set_safety_threshold(
     req: SafetyThresholdRequest,
     current_user: Staff = Depends(require_role("manager")),
 ):
-    """店长设置 AI 定价安全阈值"""
+    '""店长设置 AI 定价安全阈值""'
     threshold = req.threshold
     import app.ai.guard as guard
     guard.PRICE_MAX_FACTOR = 1 + max(0, min(100, int(threshold))) / 100

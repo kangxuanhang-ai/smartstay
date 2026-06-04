@@ -1,4 +1,4 @@
-from typing import TypedDict, Optional, Annotated
+﻿from typing import TypedDict, Optional, Annotated
 from langgraph.graph.message import MessagesState
 
 
@@ -9,3 +9,5 @@ class AgentState(MessagesState):
     role: str
     intent: str
     business_cards: list
+    preferences: Optional[dict] = None
+    conversation_summary: Optional[str] = None

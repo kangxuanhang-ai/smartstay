@@ -1,4 +1,4 @@
-# SmartStay — Progress Log
+﻿# SmartStay — Progress Log
 
 ## Current Status
 
@@ -104,6 +104,32 @@
 - Spec: `docs/superpowers/specs/2026-05-29-c-end-navigation-redesign-design.md`
 - Plan: `docs/superpowers/plans/2026-05-29-c-end-navigation-redesign-plan.md`
 - 9 tasks: LoginBottomSheet, AuthPrompt, page-level auth, My page, bill detail, bottom nav
+
+
+### F017 — AI 智能体三阶段优化 (2026-06-03)
+- Spec: `docs/superpowers/specs/2026-06-03-ai-three-phase-optimization-design.md`
+- Plan: `docs/superpowers/plans/2026-06-03-ai-three-phase-optimization-plan.md`
+
+**Phase 1: 智能体质量提升**
+- chat_node prompt 重写：角色"小智"、回复规范、上下文注入（时间/房间/姓名/偏好）、3 条 few-shot
+- action_node prompt 重写：结构化段落、精简设备参数表、偏好保存规则、2 条 few-shot
+- knowledge_node prompt 重写：添加"不编造信息"约束、注入住客上下文
+- classify_intent：8 条 few-shot 示例 + 政策类→knowledge 规则
+- RAG：chunk_size 300, overlap 80, threshold 0.3, LLM query 改写, 混合检索, reindex 端点
+- 对话记忆：增量摘要持久化到 chat_sessions.summary
+
+**Phase 2: 长期记忆 — 住客偏好设置**
+- GuestPreference 模型 + guest_preferences 表
+- CRUD API: GET/POST/DELETE /api/ai/preferences
+- save_preference_tool：LLM 判断住客意图（临时操作 vs 长期偏好）
+- 偏好注入 chat_node + action_node prompt
+
+**Phase 3: 主动式 Agent — 投诉自动响应**
+- complaint.py：关键词触发 + LLM 二次确认（降低误判率）
+- complaint_response 节点：WS 通知前台 + 紧急工单 + 安抚回复
+- ComplaintAlert.tsx：B 端 Ant Design notification
+
+**验证**: py_compile 11 文件全通过, tsc --noEmit 通过
 
 ## Evidence Log
 

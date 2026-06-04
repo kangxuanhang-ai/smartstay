@@ -1,4 +1,6 @@
-import uuid
+﻿import uuid
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -15,7 +17,11 @@ from app.aliyun.face import (
     add_face,
     search_face,
 )
+
+
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/face", tags=["face"])
 
@@ -39,7 +45,7 @@ async def verify_face(
     result = compare_face(id_card_bytes, live_bytes)
     data = result.get("Data") or result.get("data", {})
     confidence = (data.get("Confidence", 0) if data else 0)
-    return {"matched": confidence >= 80, "confidence": confidence}
+    return {"matched": confidence >= 75, "confidence": confidence}
 
 
 @router.post("/register")
@@ -77,27 +83,27 @@ async def register_face(
 @router.post("/search")
 async def search_face_login(file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
     image_bytes = await file.read()
-    print(f"[FACE SEARCH] received {len(image_bytes)} bytes")
+    logger.debug("received %d bytes", len(image_bytes))
     # 1. 活体检测
     living_result = detect_living_face(image_bytes)
-    print(f"[FACE SEARCH] living result: {living_result}")
+    logger.debug("living result: %s", living_result)
     living_data = living_result.get("Data") or living_result.get("data", {})
     elements = living_data.get("Elements", []) if living_data else []
     living_pass = False
     if elements and elements[0].get("Results", []):
         r = elements[0]["Results"][0]
         living_pass = r.get("Suggestion") == "pass" and (r.get("Rate", 0) or 0) >= 50
-        print(f"[FACE SEARCH] liveness: suggestion={r.get('Suggestion')}, rate={r.get('Rate')}, pass={living_pass}")
+        logger.info("liveness: suggestion=%s, rate=%s, pass=%s", r.get('Suggestion'), r.get('Rate'), living_pass)
     else:
-        print(f"[FACE SEARCH] liveness: no elements/results, elements={elements}")
+        logger.warning("liveness: no elements/results, elements=%s", elements)
     if not living_pass:
         raise HTTPException(status_code=400, detail="活体检测未通过")
     # 2. 人脸搜索
     search_result = search_face(settings.ALIYUN_FACE_DB_NAME, image_bytes)
-    print(f"[FACE SEARCH] search result: {search_result}")
+    logger.debug("search result: %s", search_result)
     search_data = search_result.get("Data") or search_result.get("data", {})
     match_list = search_data.get("MatchList", []) if search_data else []
-    print(f"[FACE SEARCH] match_list count={len(match_list)}")
+    logger.debug("match_list count=%d", len(match_list))
     if not match_list:
         raise HTTPException(status_code=404, detail="未找到匹配的人脸，请先到前台登记入住")
     # 3. 遍历所有匹配结果，找到第一个 is_active 的住客
@@ -116,7 +122,7 @@ async def search_face_login(file: UploadFile = File(...), db: AsyncSession = Dep
             if not guest:
                 continue
             if not guest.is_active:
-                print(f"[FACE SEARCH] guest {guest_uuid} is_active=False, skipping")
+                logger.info("guest %s is_active=False, skipping", guest_uuid)
                 continue
             # 找到活跃住客，签发 JWT
             guest_uuid_str = str(guest_uuid)

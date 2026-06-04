@@ -187,6 +187,24 @@ async def alipay_notify(
             await db.execute(
                 sa_update(Room).where(Room.id == order.room_id).values(status="dirty")
             )
+
+            # 退房后禁用住客登录
+            from app.models.guest import Guest
+            result_guest = await db.execute(select(Guest).where(Guest.id == order.user_id))
+            guest = result_guest.scalar_one_or_none()
+            if guest:
+                result_active = await db.execute(
+                    select(Order).where(
+                        Order.user_id == order.user_id,
+                        Order.status == "checked_in",
+                        Order.id != order.id,
+                    )
+                )
+                remaining = result_active.scalars().all()
+                if not remaining:
+                    guest.is_active = False
+                    db.add(guest)
+
             await db.commit()
 
             await manager.broadcast_biz({
@@ -212,7 +230,7 @@ async def alipay_notify(
 async def verify_alipay_payment(
     order_id: str,
     request: Request,
-    current_user: Staff = Depends(require_role("front_desk")),
+    current_user: Staff = Depends(require_role("front_desk", "manager")),
     db: AsyncSession = Depends(get_db),
 ):
     """Verify payment using return URL params from Alipay redirect."""
@@ -239,6 +257,24 @@ async def verify_alipay_payment(
                 await db.execute(
                     sa_update(Room).where(Room.id == order.room_id).values(status="dirty")
                 )
+
+                # 退房后禁用住客登录
+                from app.models.guest import Guest
+                result_guest = await db.execute(select(Guest).where(Guest.id == order.user_id))
+                guest = result_guest.scalar_one_or_none()
+                if guest:
+                    result_active = await db.execute(
+                        select(Order).where(
+                            Order.user_id == order.user_id,
+                            Order.status == "checked_in",
+                            Order.id != order.id,
+                        )
+                    )
+                    remaining = result_active.scalars().all()
+                    if not remaining:
+                        guest.is_active = False
+                        db.add(guest)
+
                 await db.commit()
 
                 await manager.broadcast_biz({

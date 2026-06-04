@@ -7,7 +7,7 @@ from sqlmodel import select, update
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
 from app.core.security import get_password_hash
-from app.core.utils import cst_now, cst_isoformat
+from app.core.utils import cst_now, cst_isoformat, calculate_nights
 from app.models.guest import Guest
 from app.models.user import Staff
 from app.models.room import Room
@@ -21,17 +21,20 @@ router = APIRouter(prefix="/api/orders", tags=["orders"])
 
 
 async def get_bill_total(db: AsyncSession, order_id: uuid.UUID) -> int:
-    """Calculate grand total for an order (room_rate + consumptions) in fen."""
+    """Calculate grand total for an order (room_rate * nights + consumptions) in fen."""
     result = await db.execute(select(Order).where(Order.id == order_id))
     order = result.scalar_one_or_none()
     if not order:
         return 0
 
+    nights = calculate_nights(order.check_in_time, order.check_out_time)
+    room_total = order.total_amount * nights
+
     cons_result = await db.execute(select(Consumption).where(Consumption.order_id == order_id))
     consumptions = cons_result.scalars().all()
     consumption_total = sum(c.amount * c.quantity for c in consumptions)
 
-    return order.total_amount + consumption_total
+    return room_total + consumption_total
 
 
 @router.post("/checkin")
@@ -123,12 +126,18 @@ async def get_bill(order_id: str, current_user: Guest | Staff = Depends(require_
         for c in consumptions
     ]
 
+    nights = calculate_nights(order.check_in_time, order.check_out_time)
+    daily_rate = order.total_amount
+    room_total = daily_rate * nights
+
     return BillResponse(
         order_id=str(order.id),
-        room_rate=order.total_amount,
+        room_rate=room_total,
+        daily_rate=daily_rate,
+        nights=nights,
         consumptions=lines,
         consumption_total=consumption_total,
-        grand_total=order.total_amount + consumption_total,
+        grand_total=room_total + consumption_total,
         deposit_rate=1.0,
     )
 

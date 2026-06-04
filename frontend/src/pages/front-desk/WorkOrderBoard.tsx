@@ -32,7 +32,33 @@ export default function WorkOrderBoard() {
   const [assigningId, setAssigningId] = useState<string | null>(null)
   const ws = useWebSocket()
 
-  const fetchOrders = () => apiClient.get('/api/work-orders/').then(({ data }) => setOrders(data)).catch(() => message.error('获取工单列表失败'))
+  const knownOrderIds = useRef<Set<string>>(new Set())
+  const initialLoadDone = useRef(false)
+
+  const fetchOrders = () => apiClient.get('/api/work-orders/').then(({ data }) => {
+    // After first load, detect new orders and show popup
+    if (initialLoadDone.current) {
+      for (const order of data as WorkOrder[]) {
+        if (!knownOrderIds.current.has(order.id)) {
+          knownOrderIds.current.add(order.id)
+          setNewOrder(order)
+          setAlertOpen(true)
+          notification.info({
+            message: '新工单提醒',
+            description: `${order.type === 'delivery' ? '📦' : '🔧'} ${order.content}`,
+            placement: 'topRight',
+          })
+        }
+      }
+    } else {
+      // First load: record all existing IDs without notification
+      for (const order of data as WorkOrder[]) {
+        knownOrderIds.current.add(order.id)
+      }
+      initialLoadDone.current = true
+    }
+    setOrders(data)
+  }).catch(() => message.error('获取工单列表失败'))
 
   const fetchStaff = (workOrderType?: string) => {
     const params = workOrderType ? `?work_order_type=${workOrderType}` : ''
@@ -43,10 +69,14 @@ export default function WorkOrderBoard() {
 
   useEffect(() => {
     fetchOrders()
+    // Poll every 10s as fallback in case WebSocket broadcast is missed
+    const timer = setInterval(fetchOrders, 10000)
+    return () => clearInterval(timer)
   }, [])
 
   useEffect(() => {
     const unsubNew = ws.on('work_order.new', (data) => {
+      knownOrderIds.current.add(data.order_id)
       fetchOrders()
       setNewOrder({
         id: data.order_id,

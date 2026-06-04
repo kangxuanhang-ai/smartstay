@@ -1,4 +1,4 @@
-import uuid
+﻿import uuid
 from datetime import datetime
 from typing import Optional
 from sqlmodel import Field, SQLModel, Column
@@ -14,6 +14,7 @@ class ChatSession(SQLModel, table=True):
     order_id: uuid.UUID = Field(foreign_key="orders.id")
     room_id: uuid.UUID = Field(foreign_key="rooms.id")
     status: str = Field(default="active", max_length=20)
+    summary: Optional[str] = Field(default=None)  # 对话摘要，增量更新
     created_at: datetime = Field(default_factory=cst_now)
 
 

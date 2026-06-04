@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { Layout, Menu, Button } from 'antd'
 import {
@@ -10,6 +10,7 @@ import {
 import { useAuthStore } from '../stores/authStore'
 import { useWebSocket } from '../hooks/useWebSocket'
 import AIPricingAlert from '../pages/front-desk/AIPricingAlert'
+import ComplaintAlert from './ComplaintAlert'
 
 const { Sider, Content, Header } = Layout
 
@@ -108,6 +109,7 @@ export default function AppLayout() {
         reason={pricingData.reason}
         onClose={() => setPricingOpen(false)}
       />
+      <ComplaintAlert />
     </Layout>
   )
 }

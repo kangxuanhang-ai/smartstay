@@ -1,6 +1,6 @@
 {
   "project": "SmartStay (智宿云)",
-  "last_updated": "2026-06-03",
+  "last_updated": "2026-06-04",
   "active_feature": null,
   "features": [
     {
@@ -201,6 +201,23 @@
         "Modified files: backend/app/core/settings.py, backend/app/aliyun/asr.py, backend/app/api/ai.py, smartstay-flutter/lib/core/voice_service.dart, smartstay-flutter/lib/blocs/chat/chat_bloc.dart, smartstay-flutter/lib/pages/ai_chat/ai_chat_page.dart"
       ],
       "notes": "Voice input deferred from F014 (C-end AI chat enhancement), implemented as standalone F016"
+    },
+    {
+      "id": "F018",
+      "name": "C 端 AI 联网搜索",
+      "description": "SerpAPI 联网搜索功能：5 个节点路由（新增 web_search_response），意图分类新增 web_search 类别，前端 toggle 开关控制，位置相关查询自动拼接酒店地址",
+      "status": "done",
+      "dependencies": ["F004"],
+      "spec": "docs/superpowers/specs/2026-06-04-ai-web-search-design.md",
+      "evidence": [
+        "backend/app/ai/web_search.py — SerpAPI 搜索 + LLM 整理回答，asyncio.to_thread 避免阻塞",
+        "backend/app/ai/tools.py — classify_intent 新增 web_search 类别（关键词 + LLM prompt）",
+        "backend/app/ai/graph.py — 新增 web_search_response 节点 + 路由",
+        "backend/app/api/ai.py — node_executed 支持 web_search_response，on_chain_end 兜底防重复",
+        "backend/app/core/config.py — SERPAPI_KEY 环境变量",
+        "Flutter chat_bloc.dart + ai_chat_page.dart — 联网搜索 toggle 按钮",
+        "py_compile 通过，flutter analyze 通过"
+      ]
     }
   ],
   "upcoming": [

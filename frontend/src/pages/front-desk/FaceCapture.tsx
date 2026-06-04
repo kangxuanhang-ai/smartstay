@@ -26,6 +26,13 @@ export default function FaceCapture({ onCapture, onRetry, captured }: FaceCaptur
     };
   }, []);
 
+  // Re-attach stream to video element after retry (conditional render re-mounts the element)
+  useEffect(() => {
+    if (!captured && stream && videoRef.current) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [captured, stream]);
+
   const capture = () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -40,16 +47,37 @@ export default function FaceCapture({ onCapture, onRetry, captured }: FaceCaptur
 
   return (
     <div style={{ textAlign: 'center' }}>
-      {captured && (
+      {captured ? (
         <img src={URL.createObjectURL(captured)} alt="captured" style={{ width: 300, borderRadius: 8 }} />
+      ) : (
+        <div style={{ position: 'relative', width: 300, height: 300, margin: '0 auto', borderRadius: 8, overflow: 'hidden' }}>
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            style={{ width: 300, display: 'block' }}
+          />
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: 'radial-gradient(circle at center, transparent 35%, rgba(0,0,0,0.5) 35%)',
+            pointerEvents: 'none',
+          }} />
+          <div style={{
+            position: 'absolute',
+            top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 150, height: 150,
+            border: '3px solid #2563eb',
+            borderRadius: '50%',
+            pointerEvents: 'none',
+          }} />
+          <div style={{
+            position: 'absolute', bottom: 8, left: 0, right: 0,
+            textAlign: 'center', color: '#9ca3af', fontSize: 12,
+          }}>请将面部对准圆框</div>
+        </div>
       )}
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        style={{ width: 300, borderRadius: 8, display: captured ? 'none' : 'block' }}
-      />
       <canvas ref={canvasRef} style={{ display: 'none' }} />
       <div style={{ marginTop: 12 }}>
         <button

@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     ALIPAY_NOTIFY_URL: str = "http://localhost:8000/api/alipay/notify"
     ALIPAY_RETURN_URL: str = "http://localhost:5173/front-desk/rooms"
 
+    # SerpAPI (????)
+    SERPAPI_KEY: str = ""
+
     class Config:
         env_file = ".env"
 

@@ -23,13 +23,13 @@ export default function CheckInModal({ roomId, open, onClose }: Props) {
   const [faceError, setFaceError] = useState<string | null>(null)
   const [showFaceCapture, setShowFaceCapture] = useState(false)
   const [idCardData, setIdCardData] = useState<{ name: string; id_card: string; face_url: string } | null>(null)
-  const [ocrLoading, setOcrLoading] = useState(false)
+  const [detectLoading, setDetectLoading] = useState(false)
   const guestIdRef = useRef<string | null>(null)
 
   const handleIdCardUpload = async (file: File) => {
     setIdCardFile(file)
     setIdCardImage(URL.createObjectURL(file))
-    setOcrLoading(true)
+    setDetectLoading(true)
     setFaceError(null)
 
     try {
@@ -46,7 +46,7 @@ export default function CheckInModal({ roomId, open, onClose }: Props) {
       setFaceError('身份证照片检测失败，请重试')
       message.error('身份证检测失败')
     } finally {
-      setOcrLoading(false)
+      setDetectLoading(false)
     }
 
     return false // Prevent default upload
@@ -92,7 +92,7 @@ export default function CheckInModal({ roomId, open, onClose }: Props) {
     setFaceError(null)
     setShowFaceCapture(false)
     setIdCardData(null)
-    setOcrLoading(false)
+    setDetectLoading(false)
     guestIdRef.current = null
   }
 
@@ -175,7 +175,7 @@ export default function CheckInModal({ roomId, open, onClose }: Props) {
 
         {/* Step 1: Upload ID card */}
         <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>1. 上传身份证照片</div>
+          <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>1. 上传身份证正面照片（用于人脸比对验证）</div>
           <Space direction="vertical" style={{ width: '100%' }}>
             {!idCardImage ? (
               <Upload
@@ -183,7 +183,7 @@ export default function CheckInModal({ roomId, open, onClose }: Props) {
                 showUploadList={false}
                 beforeUpload={handleIdCardUpload}
               >
-                <Button icon={<UploadOutlined />} loading={ocrLoading}>
+                <Button icon={<UploadOutlined />} loading={detectLoading}>
                   上传身份证正面照片
                 </Button>
               </Upload>

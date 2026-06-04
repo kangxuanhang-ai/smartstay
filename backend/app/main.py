@@ -79,15 +79,35 @@ app.include_router(alipay_router)
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    import asyncio
     token = websocket.query_params.get("token", "")
-    result = await manager.connect(websocket, token)
+    try:
+        result = await manager.connect(websocket, token)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error("WebSocket connect error: %s", e, exc_info=True)
+        return
     if not result:
         return
     user_id, role = result
+
+    async def send_pings():
+        while True:
+            await asyncio.sleep(30)
+            try:
+                await websocket.send_json({"type": "ping"})
+            except Exception:
+                break
+
+    ping_task = asyncio.create_task(send_pings())
     try:
         while True:
-            await websocket.receive_text()
+            data = await websocket.receive_text()
+            # Respond to pong from client (optional, just keep connection alive)
     except WebSocketDisconnect:
+        pass
+    finally:
+        ping_task.cancel()
         manager.disconnect(user_id, websocket)
 
 

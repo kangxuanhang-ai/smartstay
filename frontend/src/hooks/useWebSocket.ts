@@ -9,7 +9,21 @@ const WS_URL = `${import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8765'}/ws`
 let globalWs: WebSocket | null = null
 let globalHandlers: Map<string, Set<EventHandler>> = new Map()
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let heartbeatTimer: ReturnType<typeof setTimeout> | null = null
 let currentToken: string | null = null
+
+function resetHeartbeat() {
+  if (heartbeatTimer) clearTimeout(heartbeatTimer)
+  heartbeatTimer = setTimeout(() => {
+    // No message received in 60s — connection is dead, force reconnect
+    if (globalWs) {
+      globalWs.onclose = null
+      globalWs.close()
+      globalWs = null
+    }
+    if (currentToken) ensureConnection(currentToken)
+  }, 60000)
+}
 
 function ensureConnection(token: string) {
   if (globalWs && globalWs.readyState === WebSocket.OPEN && currentToken === token) return
@@ -23,6 +37,7 @@ function ensureConnection(token: string) {
   globalWs = ws
 
   ws.onmessage = (e) => {
+    resetHeartbeat()
     try {
       const msg = JSON.parse(e.data)
       const event = msg.event
@@ -37,7 +52,12 @@ function ensureConnection(token: string) {
     }
   }
 
+  ws.onopen = () => {
+    resetHeartbeat()
+  }
+
   ws.onclose = () => {
+    if (heartbeatTimer) { clearTimeout(heartbeatTimer); heartbeatTimer = null }
     reconnectTimer = setTimeout(() => ensureConnection(token), 3000)
   }
 

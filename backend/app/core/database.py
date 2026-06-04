@@ -1,4 +1,4 @@
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+﻿from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlmodel import SQLModel
 
 from app.core.config import settings
@@ -37,6 +37,33 @@ async def init_db():
         try:
             await conn.execute(text("ALTER TABLE guests ADD COLUMN IF NOT EXISTS face_id VARCHAR(64)"))
             await conn.execute(text("ALTER TABLE guests ADD COLUMN IF NOT EXISTS face_registered BOOLEAN DEFAULT FALSE"))
+        except Exception:
+            pass
+
+        # 迁移：ai_security_logs 表新增 user_type
+        try:
+            await conn.execute(text("ALTER TABLE ai_security_logs ADD COLUMN IF NOT EXISTS user_type VARCHAR(20) DEFAULT 'guest'"))
+        except Exception:
+            pass
+
+        # 迁移：guest_preferences 表
+        try:
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS guest_preferences (
+                    id UUID PRIMARY KEY,
+                    guest_id UUID NOT NULL REFERENCES guests(id),
+                    key VARCHAR(50) NOT NULL,
+                    value VARCHAR(20) NOT NULL,
+                    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                    UNIQUE(guest_id, key)
+                )
+            """))
+        except Exception:
+            pass
+
+        # 迁移：chat_sessions 新增 summary 字段
+        try:
+            await conn.execute(text("ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS summary TEXT"))
         except Exception:
             pass
 

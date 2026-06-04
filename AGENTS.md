@@ -1,12 +1,10 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Codex (codex.ai/code) when working with code in this repository.
 
 # SmartStay (智宿云)
 
 AI 驱动的酒店管理系统。三端客户端，一个 FastAPI 后端。
-
-**重要**：`smartstay-flutter/` 是独立的 Git 仓库（有自己的 `.git` 目录），不在主仓库的版本控制内。
 
 ## 技术栈
 
@@ -46,8 +44,6 @@ ALIYUN_FACE_DB_NAME=smartstay_faces                        # 人脸库名称
 ```
 
 关键默认值：`ACCESS_TOKEN_EXPIRE_MINUTES=15`，`REFRESH_TOKEN_EXPIRE_DAYS=7`，`DEEPSEEK_BASE_URL=https://api.deepseek.com`，`ALIYUN_REGION_ID=cn-shanghai`。
-
-> 注意：`config.py` 中还定义了 `DATABASE_URL_SYNC`（同步连接串）和 `REDIS_URL`，但两者目前均未在代码中使用，无需配置。
 
 ### 前端环境变量 (frontend/.env)
 
@@ -93,10 +89,6 @@ cd smartstay-flutter && flutter analyze                      # 静态分析
 ## 架构
 
 三端客户端共用一个 FastAPI 后端，入口 `backend/app/main.py`。
-
-### 健康检查
-
-`GET /health` → `{"status": "ok", "version": "0.2.0"}`
 
 ### 目录结构
 
@@ -229,7 +221,6 @@ async def test_something(client, biz_token):
 - **数据库表结构与关系**：`DATABASE_RELATIONS.md`
 - **功能设计文档**：`docs/superpowers/specs/`（每个功能一个）
 - **实施计划**：`docs/superpowers/plans/`（每个功能一个）
-- **Codex 代理配置**：`AGENTS.md`（与本文件内容基本一致，供 Codex 使用）
 
 ## 工作流规则
 

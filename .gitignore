@@ -1,6 +1,9 @@
 # Flutter C端 (独立仓库)
 smartstay-flutter/
 
+# Claude Code 本地配置
+.claude/
+
 # Brainstorm companion temp files
 .superpowers/
 
@@ -17,12 +20,19 @@ __pycache__/
 
 # Environment
 .env
+.env.local
+.env.production
+.env.staging
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+
+# Test images
+backend/test.jpg
+backend/test_face.jpg
 
 # OS
 .DS_Store

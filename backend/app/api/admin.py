@@ -36,14 +36,29 @@ async def get_dashboard(
     result = await db.execute(select(Room))
     rooms = result.scalars().all()
     total_rooms = len(rooms)
-    occupied = sum(1 for r in rooms if r.status == "occupied")
+    room_prices = {str(r.id): r.base_price for r in rooms}
 
-    result = await db.execute(select(sa_func.sum(Order.total_amount)).where(Order.status == "checked_in"))
-    today_revenue = result.scalar() or 0
+    today = cst_now().date()
 
-    result = await db.execute(select(sa_func.count()).select_from(Order).where(Order.status == "checked_in"))
-    today_orders = result.scalar() or 0
+    result = await db.execute(
+        select(Order).where(Order.check_in_time.isnot(None))
+    )
+    all_orders = result.scalars().all()
 
+    occupied_rooms = set()
+    today_revenue = 0
+    today_orders = 0
+
+    for o in all_orders:
+        checkin_date = o.check_in_time.date()
+        checkout_date = o.check_out_time.date() if o.check_out_time else None
+        is_staying_today = (checkin_date <= today) and (checkout_date is None or checkout_date >= today)
+        if is_staying_today:
+            occupied_rooms.add(str(o.room_id))
+            today_revenue += room_prices.get(str(o.room_id), 0)
+            today_orders += 1
+
+    occupied = len(occupied_rooms)
     revpar = today_revenue // total_rooms if total_rooms > 0 else 0
 
     return {
@@ -173,6 +188,19 @@ async def list_audit_reports(
     ]
 
 
+# ── 手动触发审计 ──
+@router.post("/audit-reports/trigger")
+async def trigger_audit(
+    current_user: Staff = Depends(require_role("manager")),
+):
+    from app.tasks.audit import generate_audit_report
+    try:
+        result = await generate_audit_report()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"审计触发失败: {type(e).__name__}: {str(e)}")
+
+
 # ── 模拟门锁打开 ──
 @router.post("/simulate/door-open")
 async def simulate_door_open(
@@ -183,27 +211,32 @@ async def simulate_door_open(
         select(Order).where(Order.status == "paid").limit(1)
     )
     order = result.scalar_one_or_none()
+
     if not order:
         result = await db.execute(
             select(Order).where(Order.status == "checked_in").limit(1)
         )
         order = result.scalar_one_or_none()
-
-    if not order:
+        if order:
+            return {"message": f"订单 {order.id} 已处于入住状态，无需模拟"}
         return {"message": "没有可模拟的订单，请先开房"}
 
-    if order.status == "paid":
-        order.status = "checked_in"
-        order.check_in_time = cst_now()
-        await db.execute(
-            update(Room).where(Room.id == order.room_id).values(status="occupied")
-        )
-        await db.commit()
+    # 查房间当前状态用于广播
+    room_result = await db.execute(select(Room).where(Room.id == order.room_id))
+    room = room_result.scalar_one_or_none()
+    old_status = room.status if room else "vacant"
 
-        await manager.broadcast_biz({
-            "event": "room.status_change",
-            "data": {"room_id": str(order.room_id), "old_status": "vacant", "new_status": "occupied"},
-        })
+    order.status = "checked_in"
+    order.check_in_time = cst_now()
+    await db.execute(
+        update(Room).where(Room.id == order.room_id).values(status="occupied")
+    )
+    await db.commit()
+
+    await manager.broadcast_biz({
+        "event": "room.status_change",
+        "data": {"room_id": str(order.room_id), "old_status": old_status, "new_status": "occupied"},
+    })
 
     return {"message": f"模拟成功：订单 {order.id} 已推进至 CHECKED_IN"}
 
@@ -248,7 +281,7 @@ async def simulate_prompt_inject(
 ):
     log = AISecurityLog(
         user_id=current_user.id,
-        user_type="staff",
+        user_type="guest",
         role="guest",
         tool_name="modify_room_price_tool",
         tool_params={"new_price": 100},
@@ -284,9 +317,11 @@ async def reset_data(
     current_user: Staff = Depends(require_role("admin")),
     db: AsyncSession = Depends(get_db),
 ):
+    # 保留当前 admin 用户的 token 有效，只删除其他 Staff
+    await db.execute(delete(Staff).where(Staff.id != current_user.id))
     tables = [ChatMessage, ChatSession, AISecurityLog, RAGEmbedding, RAGDocument,
               AuditReport, AIPricingLog, InvoiceRecord, Consumption,
-              WorkOrder, Order, Room, Guest, Staff]
+              WorkOrder, Order, Room, Guest]
     for t in tables:
         await db.execute(delete(t))
     await db.commit()
@@ -462,66 +497,65 @@ async def delete_user(
     raise HTTPException(status_code=404, detail="用户不存在")
 
 
-# ── Mock数据批量注入 ──
-@router.post("/seed-mock")
-async def seed_mock_data(
-    current_user: Staff = Depends(require_role("admin")),
+# ── 注入审计测试数据 ──
+@router.post("/seed-audit-test")
+async def seed_audit_test(
+    current_user: Staff = Depends(require_role("manager", "admin")),
     db: AsyncSession = Depends(get_db),
 ):
-    import random
+    from app.models.work_order import WorkOrder
+    from app.models.work_order import WorkOrder
+    from datetime import timedelta
 
-    # 批量创建虚拟住客
-    guests = []
-    for i in range(10):
-        card = f"mock_guest_{i:04d}"
-        existing = await db.execute(select(Guest).where(Guest.id_card == card))
-        if existing.scalar_one_or_none():
-            continue
-        g = Guest(
-            id_card=card, phone=f"1380000{i:04d}", name=f"虚拟住客{i:02d}",
-            hashed_password=get_password_hash("123456"), is_first_login=True,
-        )
-        db.add(g)
-        guests.append(g)
+    result = await db.execute(select(Room).limit(3))
+    rooms = result.scalars().all()
+    if not rooms:
+        raise HTTPException(status_code=400, detail="没有可用房间")
 
-    await db.flush()
+    yesterday = cst_now().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
 
-    # 拿空闲房间批量创建订单
-    result = await db.execute(select(Room).where(Room.status == "vacant").limit(5))
-    vacant_rooms = result.scalars().all()
+    test_orders = [
+        WorkOrder(
+            room_id=rooms[0].id, type="repair",
+            content="空调不制冷，客人投诉多次",
+            assigned_resource="张三", status="accepted", ai_generated=True,
+            created_at=yesterday + timedelta(hours=10),
+        ),
+        WorkOrder(
+            room_id=rooms[0].id, type="cleaning",
+            content="房间清洁不彻底，客人不满意",
+            assigned_resource="李四", status="completed", ai_generated=False,
+            created_at=yesterday + timedelta(hours=14),
+        ),
+        WorkOrder(
+            room_id=rooms[1].id, type="repair",
+            content="卫生间漏水严重，需紧急维修",
+            assigned_resource="张三", status="processing", ai_generated=True,
+            created_at=yesterday + timedelta(hours=16),
+        ),
+        WorkOrder(
+            room_id=rooms[1].id, type="amenity",
+            content="客人要求加床，一直没处理",
+            assigned_resource="王五", status="submitted", ai_generated=False,
+            created_at=yesterday + timedelta(hours=18),
+        ),
+        WorkOrder(
+            room_id=rooms[2].id, type="repair",
+            content="门锁故障，客人无法进房",
+            assigned_resource="张三", status="submitted", ai_generated=True,
+            created_at=yesterday + timedelta(hours=20),
+        ),
+    ]
 
-    created_orders = []
-    for i, room in enumerate(vacant_rooms):
-        if i >= len(guests):
-            break
-        order = Order(
-            user_id=guests[i].id, room_id=room.id, status="checked_in",
-            source=random.choice(["self_app", "ctrip", "meituan"]),
-            total_amount=room.current_price, check_in_time=cst_now(),
-        )
-        db.add(order)
-        room.status = "occupied"
-        created_orders.append(order)
+    for wo in test_orders:
+        db.add(wo)
 
-    await db.flush()
-
-    # 批量创建消费记录（精准关联活跃订单）
-    items = [("客房小冰箱·可乐", "minibar", 800), ("客房小冰箱·矿泉水", "minibar", 300),
-             ("中餐厅·红烧肉套餐", "restaurant", 12800), ("便携旅行洗护套装", "other", 3500)]
-
-    for _ in range(20):
-        if created_orders:
-            target_order = random.choice(created_orders)
-            item = random.choice(items)
-            c = Consumption(
-                order_id=target_order.id, room_id=target_order.room_id,
-                item_name=item[0], category=item[1], amount=item[2],
-                quantity=1, created_by="front_desk", consumed_at=cst_now(),
-            )
-            db.add(c)
+    # 清除旧审计报告，以便重新生成
+    from app.models.ai_log import AuditReport
+    await db.execute(delete(AuditReport))
 
     await db.commit()
-    return {"message": f"已注入 {len(guests)} 个虚拟住客, {len(created_orders)} 条订单, 20 条消费"}
+    return {"message": f"已注入 {len(test_orders)} 条测试工单，并清除旧报告，请点击「立即审计」"}
 
 
 # ── 全天流水走势 ──
@@ -530,6 +564,9 @@ async def get_hourly_revenue(
     current_user: Staff = Depends(require_role("manager")),
     db: AsyncSession = Depends(get_db),
 ):
+    result = await db.execute(select(Room))
+    room_prices = {str(r.id): r.base_price for r in result.scalars().all()}
+
     result = await db.execute(
         select(Order).where(Order.status.in_(["checked_in", "checked_out", "completed"]))
     )
@@ -539,9 +576,12 @@ async def get_hourly_revenue(
     today = cst_now().date()
 
     for o in orders:
-        if o.check_in_time and o.check_in_time.date() == today:
+        if not o.check_in_time:
+            continue
+        daily_rate = room_prices.get(str(o.room_id), 0)
+        if o.check_in_time.date() == today:
             hour = o.check_in_time.hour
             idx = min(hour // 2, 11)
-            hourly_trend[idx] += o.total_amount // 100
+            hourly_trend[idx] += daily_rate // 100
 
     return {"revenue_trend": hourly_trend}

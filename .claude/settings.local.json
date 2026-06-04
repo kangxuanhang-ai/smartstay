@@ -128,7 +128,16 @@
       "Bash(nohup poetry *)",
       "Bash(echo \"Server PID: $!\")",
       "Read(//tmp/**)",
-      "Bash(echo \"Started PID: $!\")"
+      "Bash(echo \"Started PID: $!\")",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "Bash(poetry search *)",
+      "Bash(pip index *)",
+      "Bash(pip search *)",
+      "mcp__plugin_context7_context7__query-docs",
+      "Bash(poetry add *)",
+      "Bash(psql *)",
+      "Bash(git check-ignore *)",
+      "Bash(git *)"
     ]
   }
 }

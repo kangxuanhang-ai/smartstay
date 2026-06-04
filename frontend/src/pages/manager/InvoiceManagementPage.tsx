@@ -47,19 +47,156 @@ export default function InvoiceManagementPage() {
     }
   }
 
-  const handleExportPDF = (record: any) => {
+  const handleExportPDF = async (record: any) => {
+    const orderId = record.order_id || record.id
+    let bill: any = null
+    try {
+      const { data } = await apiClient.get(`/api/orders/${orderId}/bill`)
+      bill = data
+    } catch {
+      // fallback: generate without bill data
+    }
+
     const doc = new jsPDF()
+    const pageW = 210
+    const margin = 20
+    let y = 20
+
+    // ?? Header: Hotel Info ??
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(20)
+    doc.setTextColor(37, 99, 235)
+    doc.text('SmartStay Hotel', margin, y)
+    y += 8
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(18)
-    doc.text('Invoice / Fapiao', 20, 20)
-    doc.setFontSize(12)
-    doc.text(`Order ID: ${record.order_id || record.id}`, 20, 40)
-    doc.text(`Company: ${record.company_name || '-'}`, 20, 50)
-    doc.text(`Tax ID: ${record.tax_id || '-'}`, 20, 60)
-    doc.text(`Email: ${record.email || '-'}`, 20, 70)
-    doc.text(`Status: ${record.status}`, 20, 80)
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 90)
-    doc.save(`invoice-${record.id}.pdf`)
+    doc.setFontSize(9)
+    doc.setTextColor(100, 100, 100)
+    doc.text('Beijing CBD, SOHO Modern City, No.88 Jianguo Road, Chaoyang District', margin, y)
+    y += 5
+    doc.text('Tel: 138-0000-0002  |  www.smartstay.com', margin, y)
+    y += 10
+
+    // ?? Divider line ??
+    doc.setDrawColor(37, 99, 235)
+    doc.setLineWidth(0.8)
+    doc.line(margin, y, pageW - margin, y)
+    y += 10
+
+    // ?? Invoice Title ??
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(16)
+    doc.setTextColor(30, 30, 30)
+    doc.text('INVOICE', margin, y)
+    y += 8
+
+    // ?? Invoice meta (right aligned) ??
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(80, 80, 80)
+    const invoiceNo = `INV-${orderId.substring(0, 8).toUpperCase()}`
+    const issueDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    doc.text(`Invoice No: ${invoiceNo}`, pageW - margin - 60, y - 8)
+    doc.text(`Date: ${issueDate}`, pageW - margin - 60, y - 3)
+    doc.text(`Status: ${record.status === 'issued' ? 'ISSUED' : 'DRAFT'}`, pageW - margin - 60, y + 2)
+    y += 10
+
+    // ?? Bill To section ??
+    doc.setFillColor(245, 245, 250)
+    doc.roundedRect(margin, y, pageW - 2 * margin, 28, 2, 2, 'F')
+    y += 6
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+    doc.setTextColor(100, 100, 100)
+    doc.text('BILL TO', margin + 4, y)
+    y += 5
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.setTextColor(30, 30, 30)
+    doc.text(record.company_name || '-', margin + 4, y)
+    y += 5
+    doc.setFontSize(9)
+    doc.setTextColor(80, 80, 80)
+    doc.text(`Tax ID: ${record.tax_id || '-'}`, margin + 4, y)
+    doc.text(`Email: ${record.email || '-'}`, margin + 80, y)
+    y += 15
+
+    // ?? Items Table ??
+    doc.setFillColor(37, 99, 235)
+    doc.rect(margin, y, pageW - 2 * margin, 8, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.setTextColor(255, 255, 255)
+    doc.text('Description', margin + 4, y + 5.5)
+    doc.text('Qty', pageW - margin - 40, y + 5.5)
+    doc.text('Amount', pageW - margin - 2, y + 5.5, { align: 'right' })
+    y += 8
+
+    doc.setTextColor(30, 30, 30)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+
+    const formatFen = (fen: number) => `\u00a5${(fen / 100).toFixed(2)}`
+
+    // Room rate row
+    const nights = bill?.nights || 1
+    const dailyRate = bill?.daily_rate || bill?.room_rate || 0
+    const roomDesc = nights > 1
+      ? `Room Charge (${nights} nights @ ${formatFen(dailyRate)}/night)`
+      : 'Room Charge (1 night)'
+    doc.text(roomDesc, margin + 4, y + 5)
+    doc.text(String(nights), pageW - margin - 35, y + 5)
+    doc.text(formatFen(bill?.room_rate || dailyRate), pageW - margin - 2, y + 5, { align: 'right' })
+    y += 7
+    doc.setDrawColor(220, 220, 220)
+    doc.line(margin + 4, y, pageW - margin - 4, y)
+    y += 1
+
+    // Consumption rows
+    const consumptions = bill?.consumptions || []
+    for (const c of consumptions) {
+      doc.text(c.item_name || '-', margin + 4, y + 5)
+      doc.text(String(c.quantity || 1), pageW - margin - 35, y + 5)
+      doc.text(formatFen((c.amount || 0) * (c.quantity || 1)), pageW - margin - 2, y + 5, { align: 'right' })
+      y += 7
+      doc.line(margin + 4, y, pageW - margin - 4, y)
+      y += 1
+    }
+
+    // ?? Totals ??
+    y += 4
+    const consumptionTotal = bill?.consumption_total || 0
+    const grandTotal = bill?.grand_total || 0
+
+    doc.setFont('helvetica', 'normal')
+    doc.text('Room Subtotal:', margin + 80, y + 5)
+    doc.text(formatFen(bill?.room_rate || dailyRate), pageW - margin - 2, y + 5, { align: 'right' })
+    y += 7
+    doc.text('Consumption Subtotal:', margin + 80, y + 5)
+    doc.text(formatFen(consumptionTotal), pageW - margin - 2, y + 5, { align: 'right' })
+    y += 9
+
+    // Grand total with highlight
+    doc.setFillColor(37, 99, 235)
+    doc.roundedRect(margin, y - 2, pageW - 2 * margin, 10, 2, 2, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(11)
+    doc.setTextColor(255, 255, 255)
+    doc.text('TOTAL', margin + 4, y + 5)
+    doc.text(formatFen(grandTotal), pageW - margin - 2, y + 5, { align: 'right' })
+    y += 18
+
+    // ?? Footer ??
+    doc.setDrawColor(200, 200, 200)
+    doc.line(margin, y, pageW - margin, y)
+    y += 6
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(140, 140, 140)
+    doc.text('This is a computer-generated invoice. For questions, contact front desk or email support@smartstay.com', margin, y)
+    y += 4
+    doc.text('SmartStay Hotel  |  Beijing CBD  |  Tel: 138-0000-0002', margin, y)
+
+    doc.save(`invoice-${invoiceNo}.pdf`)
   }
 
   const getRoomLabel = (orderId: string) => orderId.substring(0, 8) + '...'
