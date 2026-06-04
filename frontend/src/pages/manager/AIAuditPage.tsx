@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Card, Tag, Spin, Button, List, message } from 'antd'
+import { Card, Tag, Spin, Button, message } from 'antd'
 import { WarningOutlined, BulbOutlined, ReloadOutlined } from '@ant-design/icons'
 import apiClient from '../../api/client'
 
@@ -96,7 +96,7 @@ export default function AIAuditPage() {
   const report = reports[activeIdx] || reports[0]
   const anomalies = report?.anomalies || []
   const content = report?.content || {}
-  const anomalyItems = Array.isArray(anomalies) ? anomalies : Object.values(anomalies)
+  const anomalyItems: Anomaly[] = Array.isArray(anomalies) ? anomalies : Object.values(anomalies ?? {})
 
   return (
     <div>
@@ -165,17 +165,17 @@ export default function AIAuditPage() {
             )}
           </Card>
 
-          {content.risk_rooms && (
+          {!!content.risk_rooms && (
             <Card style={{ marginBottom: 16, background: '#fff2f0', borderColor: '#ffccc7' }}>
               <h4 style={{ fontWeight: 600, color: '#ff4d4f', marginBottom: 8 }}><WarningOutlined /> 高客诉风险房间</h4>
-              <p style={{ fontSize: 14, color: '#666' }}>{String(content.risk_rooms)}</p>
+              <p style={{ fontSize: 14, color: '#666' }}>{String(content['risk_rooms'])}</p>
             </Card>
           )}
 
-          {content.recommendations && (
+          {!!content.recommendations && (
             <Card style={{ marginBottom: 16, background: '#f6ffed', borderColor: '#b7eb8f' }}>
               <h4 style={{ fontWeight: 600, color: '#52c41a', marginBottom: 8 }}><BulbOutlined /> AI整改建议</h4>
-              <p style={{ fontSize: 14, color: '#666' }}>{String(content.recommendations)}</p>
+              <p style={{ fontSize: 14, color: '#666' }}>{String(content['recommendations'])}</p>
             </Card>
           )}
         </div>

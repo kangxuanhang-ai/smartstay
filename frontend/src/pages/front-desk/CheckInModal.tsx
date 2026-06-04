@@ -22,7 +22,7 @@ export default function CheckInModal({ roomId, open, onClose }: Props) {
   const [faceVerifying, setFaceVerifying] = useState(false)
   const [faceError, setFaceError] = useState<string | null>(null)
   const [showFaceCapture, setShowFaceCapture] = useState(false)
-  const [idCardData, setIdCardData] = useState<{ name: string; id_card: string; face_url: string } | null>(null)
+  const [_idCardData, setIdCardData] = useState<{ name: string; id_card: string; face_url: string } | null>(null)
   const [detectLoading, setDetectLoading] = useState(false)
   const guestIdRef = useRef<string | null>(null)
 
