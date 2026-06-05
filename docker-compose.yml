@@ -33,6 +33,8 @@ services:
       - backend
     ports:
       - "80:80"
+    volumes:
+      - ./frontend/.well-known:/usr/share/nginx/html/.well-known
 
 volumes:
   pgdata:
