@@ -3,7 +3,9 @@ import { useAuthStore } from '../stores/authStore'
 
 type EventHandler = (data: any) => void
 
-const WS_URL = `${import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8765'}/ws`
+const WS_URL = import.meta.env.VITE_WS_BASE_URL
+  ? `${import.meta.env.VITE_WS_BASE_URL}/ws`
+  : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
 
 // 模块级单例：全局唯一连接
 let globalWs: WebSocket | null = null
