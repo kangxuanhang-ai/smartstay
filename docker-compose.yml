@@ -34,7 +34,7 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ./frontend/.well-known:/usr/share/nginx/html/.well-known
+      - /opt/smartstay/frontend/.well-known:/usr/share/nginx/html/.well-known:ro
 
 volumes:
   pgdata:
