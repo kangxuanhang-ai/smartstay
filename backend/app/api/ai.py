@@ -215,6 +215,15 @@ async def ai_chat(
                     final_cards = cards
                     for card in cards:
                         yield f"data: {json.dumps({'type': 'card', 'card': card}, ensure_ascii=False)}\n\n"
+                    # 兜底：提取 action 节点的最终文字回复
+                    if not final_text:
+                        messages_out = output.get("messages", [])
+                        for msg in reversed(messages_out):
+                            content = getattr(msg, "content", None)
+                            if content and isinstance(content, str):
+                                final_text = content
+                                yield f"data: {json.dumps({'type': 'text', 'content': content}, ensure_ascii=False)}\n\n"
+                                break
 
                 # 兜底：从 knowledge_response / chat_response / web_search_response 节点 output 中提取 AI 回复
                 elif kind == "on_chain_end" and name in ("knowledge_response", "chat_response", "web_search_response"):

@@ -356,6 +356,16 @@ async def action_node(state: AgentState):
             # MAX_ITERATIONS reached without LLM stopping
             logger.warning(f"action_node hit MAX_ITERATIONS ({MAX_ITERATIONS})")
 
+        # 确保 LLM 生成最终文字回复
+        from langchain_core.messages import AIMessage
+        last_msg = messages[-1] if messages else None
+        if not isinstance(last_msg, AIMessage) or not getattr(last_msg, 'content', ''):
+            # 工具执行完但 LLM 没有生成文字回复，强制生成确认
+            confirm_msg = HumanMessage(content="操作已执行，请用一句话简短确认。")
+            messages.append(confirm_msg)
+            resp = await llm.ainvoke(messages)
+            messages.append(resp)
+
         # Only store the final AI response in state, not ToolMessages
         state["messages"] = [HumanMessage(content=user_text), messages[-1]]
 
