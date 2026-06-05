@@ -7,7 +7,7 @@ ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
 ENV PIP_TRUSTED_HOST=mirrors.aliyun.com
 
 # 安装 poetry，导出 requirements.txt，用 pip 安装（pip 走阿里云镜像）
-RUN pip install --no-cache-dir poetry && poetry config virtualenvs.create false
+RUN pip install --no-cache-dir poetry poetry-plugin-export && poetry config virtualenvs.create false
 COPY pyproject.toml poetry.lock ./
 RUN poetry export --without-hashes -f requirements.txt -o requirements.txt && pip install --no-cache-dir -r requirements.txt
 
