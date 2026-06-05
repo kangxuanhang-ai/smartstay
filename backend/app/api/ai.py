@@ -1,7 +1,7 @@
 ﻿import uuid
 import json
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
@@ -475,3 +475,56 @@ async def set_safety_threshold(
     import app.ai.guard as guard
     guard.PRICE_MAX_FACTOR = 1 + max(0, min(100, int(threshold))) / 100
     return {"message": f"安全阈值已更新为 {threshold}%", "factor": guard.PRICE_MAX_FACTOR, "note": "重启服务器后需重新设置"}
+
+
+@router.post("/asr")
+async def transcribe_audio(
+    file: UploadFile = File(...),
+    current_user: Guest = Depends(get_current_user),
+):
+    '""语音识别接口 - 将音频转为文字""'
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="请上传音频文件")
+
+    audio_data = await file.read()
+    if len(audio_data) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="音频文件过大（最大 10MB）")
+
+    try:
+        from app.aliyun.asr import recognize_speech
+        text = await recognize_speech(audio_data)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"语音识别服务不可用: {str(e)}")
+
+    return {"text": text or ""}
+
+
+@router.get("/preferences/list")
+async def list_preferences(
+    current_user: Guest = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    '""获取住客偏好列表（带标签信息）""'
+    result = await db.execute(
+        select(GuestPreference).where(GuestPreference.guest_id == current_user.id)
+    )
+    prefs = result.scalars().all()
+
+    labels = {
+        "ac_temp": {"label": "空调温度", "icon": "thermostat", "category": "environment"},
+        "ac_mode": {"label": "空调模式", "icon": "ac_unit", "category": "environment"},
+        "curtain": {"label": "窗帘开度", "icon": "curtains", "category": "environment"},
+        "bedside_light": {"label": "床头灯", "icon": "lightbulb_outline", "category": "environment"},
+        "bedroom_light": {"label": "卧室灯", "icon": "lightbulb", "category": "environment"},
+        "living_light": {"label": "客厅灯", "icon": "light", "category": "environment"},
+    }
+
+    return [
+        {
+            "key": p.key,
+            "value": p.value,
+            **labels.get(p.key, {"label": p.key, "icon": "settings", "category": "other"}),
+            "updated_at": cst_isoformat(p.updated_at) if hasattr(p, 'updated_at') and p.updated_at else None,
+        }
+        for p in prefs
+    ]
