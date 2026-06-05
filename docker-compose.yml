@@ -33,8 +33,10 @@ services:
       - backend
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - /opt/smartstay/frontend/.well-known:/usr/share/nginx/html/.well-known:ro
+      - /opt/smartstay/frontend/cert:/usr/share/nginx/html/cert:ro
 
 volumes:
   pgdata:
