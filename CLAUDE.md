@@ -29,15 +29,15 @@ cd smartstay-flutter && flutter pub get && flutter run
 
 ### 必需的 .env 配置项 (backend/.env)
 
-所有配置在 `backend/app/core/config.py` 中有默认值，`.env` 中只需覆盖你要改的：
+所有配置在 `backend/app/core/config.py` 中有默认值，`.env` 中只需覆盖你要改的。模板文件：`backend/.env.example`、`frontend/.env.example`。
 
 ```
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/smartstay
 SECRET_KEY=<任意字符串>
 DEEPSEEK_API_KEY=<AI 代理用>
 SERPAPI_KEY=<联网搜索用，可选>
-ALIYUN_ACCESS_KEY_ID=<人脸识别用>
-ALIYUN_ACCESS_KEY_SECRET=<人脸识别用>
+ALIYUN_ACCESS_KEY_ID=<人脸识别 + 语音识别用>
+ALIYUN_ACCESS_KEY_SECRET=<人脸识别 + 语音识别用>
 ALIPAY_APP_ID=<支付宝沙箱应用ID>
 ALIPAY_PRIVATE_KEY=<应用私钥>
 ALIPAY_PUBLIC_KEY=<支付宝公钥>
@@ -58,7 +58,7 @@ VITE_WS_BASE_URL=ws://localhost:8765
 
 ## 验证命令
 
-完成任务前必须全部运行：
+完成任务前必须全部运行（按顺序检查：编译 → 类型检查 → 测试）：
 
 ```bash
 # 后端
@@ -76,6 +76,15 @@ cd smartstay-flutter && flutter analyze                      # 静态分析
 ```
 
 环境一键检查：`./init.sh`（验证工具链、.env、数据库连通性、三端编译）。
+
+### Docker 生产部署
+
+`docker-compose.yml` 定义了三个服务：`db`（pgvector/pgvector:pg16）、`backend`（FastAPI）、`frontend`（nginx）。模板 `.env.example` 文件在 `backend/` 和 `frontend/` 目录下。
+
+### Git & CI
+
+- **`smartstay-flutter/` 是独立 Git 仓库**，有自己的 `.git` 目录，不在主仓库版本控制内。修改 Flutter 代码时需在该目录内单独 commit/push。
+- **CI 流程** (`.github/workflows/deploy.yml`)：push 到 `main` 触发 — Python 3.11 类型检查 + Node 20 前端构建 → SSH 部署到服务器（`docker compose build && up`）。
 
 ## ⚠️ 每次任务前必做
 
@@ -96,38 +105,50 @@ cd smartstay-flutter && flutter analyze                      # 静态分析
 
 ### 健康检查
 
-`GET /health` → `{"status": "ok", "version": "0.2.0"}`
+`GET /health` → `{"status": "ok", "version": "1.0.0"}`
 
 ### 目录结构
 
 ```
 backend/app/
   api/          路由处理：auth, rooms, orders, work_orders, admin, consumptions, hotel, ai, rag, face, alipay
-  models/       SQLModel 表定义 (17 张表)
+  models/       SQLModel 表定义 (16 张表在 __init__.py 导入 + 1 张 guest_preferences = 共 17 张)
   core/         配置 (pydantic-settings)、数据库引擎、认证/安全、依赖注入、种子数据
-  ai/           LangGraph 代理：graph, tools, guard, rag, state, pricing, complaint
+  ai/           LangGraph 代理：graph, tools, guard, rag, state, pricing, complaint, web_search
   ws/           WebSocket ConnectionManager
   tasks/        APScheduler 定时任务 (每天凌晨 4 点审计报告)
-  aliyun/       阿里云人脸识别 API 客户端
+  aliyun/       阿里云 API 客户端 (人脸识别 + 语音识别)
 
 frontend/src/
   pages/        4 个分区：login/, front-desk/, manager/, admin/
   stores/       Zustand authStore (单一 store)
   hooks/        useWebSocket (模块级单例，发布/订阅模式)
   api/          Axios 客户端，带 401 自动刷新拦截器
+  components/   共享组件：AppLayout, AuthGuard, ComplaintAlert, ErrorBoundary, FaceCapture
 
 smartstay-flutter/lib/
   blocs/        4 个 BLoC：auth, chat, room, work_order
   pages/        13 个页面，分布在 11 个目录 (含 login/, ai_chat/)
-  core/         ApiClient (Dio + JWT 刷新)、WsService、SSE 解析器、config
+  core/         ApiClient (Dio + JWT 刷新)、WsService、SSE 解析器、config、VoiceService
 ```
+
+### 枚举值（代码中为字符串，非 Python Enum）
+
+- **Room.status**: `vacant`, `occupied`, `dirty`, `maintenance`
+- **Room.room_type**: `big_bed`, `twin`, `suite`
+- **Order.status**: `pending`, `paid`, `checked_in`, `checked_out`, `completed`
+- **Order.source**: `self_app`, `walk_in`, `ota`
+- **WorkOrder.type**: `delivery`, `repair`
+- **WorkOrder.status**: `submitted`, `accepted`, `processing`, `completed`
+- **Staff.role**: `front_desk`, `manager`, `admin`
+- **Staff.staff_type**: `housekeeping`, `maintenance`（`None` 表示非蓝领岗位）
 
 ### 关键约束
 
 - **价格单位为分 (fen)**：所有金额都是整数。`30000` = 300 元。显示时 ÷ 100。
 - **UUID 主键**：所有表使用 `uuid.UUID`，自动生成。
 - **双用户模型**：`Guest`（无角色）+ `Staff`（front_desk/manager/admin）。JWT 携带 `user_type` 声明。`get_current_user` 依赖据此从正确的表查询。
-- **破坏性迁移**：`init_db()` 每次启动会删除 `rag_embeddings` 和 `users` 表。仅限开发环境，生产环境不安全。
+- **破坏性迁移**：`init_db()` 每次启动会删除 `rag_embeddings` 和 `users` 表。仅限开发环境，生产环境不安全。`backend/alembic/` 有一次初始迁移，但目前未用于增量迁移——生产环境需手动管理 schema 变更。
 - **首次登录强制改密**：所有种子账号初始密码 `123456`，`is_first_login=True`。
 - **退房后住客锁定**：退房后 `Guest.is_active=False`，C 端无法登录。再次入住时自动解锁。
 - **新员工需入库**：新增的 Staff 模型有 `is_active` 字段。新数据库需手动 `ALTER TABLE staff ADD COLUMN is_active BOOLEAN DEFAULT TRUE`。
@@ -135,6 +156,21 @@ smartstay-flutter/lib/
 - **时间一律用 CST**：`backend/app/core/utils.py` 提供 `cst_now()`（UTC+8 naive datetime）和 `cst_isoformat()`。所有模型的 `created_at` 默认值用 `cst_now`。
 - **全局异常处理**：`main.py` 有 catch-all，返回 `{"code": 500, "message": "服务器内部错误", "detail": str(exc)}`。
 - **CORS 全开**：`allow_origins=["*"]`，`allow_credentials=False`。
+- **登录限流**：`slowapi` 限流，登录接口 `5/minute`（`/api/auth/login` 和 `/api/auth/login/biz`）。
+
+### 数据库模型 (16 张在 __init__.py 导入 + 1 张 guest_preferences = 共 17 张)
+
+```python
+# backend/app/models/__init__.py 中导入的模型
+Guest, Staff, HotelInfo, Facility, Room, Order, WorkOrder,
+Consumption, InvoiceRecord, AIPricingLog, AuditReport,
+RAGDocument, RAGEmbedding, AISecurityLog, ChatSession, ChatMessage
+
+# backend/app/models/preference.py 中定义但未在 __init__.py 导入
+GuestPreference  # guest_preferences 表
+```
+
+> **注意**：`GuestPreference` 模型在 `preference.py` 中定义，但未在 `__init__.py` 中导入。如需使用，需显式导入：`from app.models.preference import GuestPreference`。
 
 ### 测试模式
 
@@ -196,6 +232,7 @@ async def test_something(client, biz_token):
 - **双平台 SSE** (Flutter ChatBloc)：Web 用 `fetch` API，原生用 Dio stream — 在 `html_stub.dart` 中处理。
 - **500ms 防抖**：设备控制（灯光、窗帘、空调）使用防抖 POST + 乐观更新 UI。
 - **阿里云人脸识别**：通过 `backend/app/aliyun/face.py` 实现人脸检测/比对/注册/搜索。人脸库在启动时自动创建。刷脸登录会跳过 `is_active=False` 的住客。人脸比对阈值 75%。
+- **阿里云语音识别 (ASR)**：通过 `backend/app/aliyun/asr.py` 实现语音转文字（用于 C 端 AI 聊天语音输入）。使用与人脸识别相同的 `ALIYUN_ACCESS_KEY_ID` 和 `ALIYUN_ACCESS_KEY_SECRET`。
 - **房费多日计算**：`total_amount` 始终为单日房价（分），退房后不覆盖。账单通过 `calculate_nights()` 动态计算累计房费。`BillResponse` 包含 `nights` 和 `daily_rate` 字段。大盘今日流水用 `Room.base_price` 计算。
 - **工单看板轮询兜底**：`WorkOrderBoard.tsx` 除 WebSocket 监听外，还有 10 秒轮询 + 新工单对比弹框，防止 WebSocket 断连期间广播丢失。
 
@@ -229,7 +266,8 @@ async def test_something(client, biz_token):
 - **数据库表结构与关系**：`DATABASE_RELATIONS.md`
 - **功能设计文档**：`docs/superpowers/specs/`（每个功能一个）
 - **实施计划**：`docs/superpowers/plans/`（每个功能一个）
-- **Codex 代理配置**：`AGENTS.md`（与本文件内容基本一致，供 Codex 使用）
+- **Codex 代理配置**：`AGENTS.md`（旧版本，内容可能落后于本文件）
+- **项目深度分析**：`PROJECT_SUMMARY.md`（架构分析报告）
 
 ## 工作流规则
 

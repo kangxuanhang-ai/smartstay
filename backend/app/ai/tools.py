@@ -33,6 +33,9 @@ _WEB_SEARCH_KEYWORDS = [
     "天气", "附近", "推荐", "怎么去", "导航", "航班", "地铁",
     "新闻", "景点", "美食", "餐厅", "好吃", "好玩", "旅游",
     "高铁", "火车", "飞机", "公交", "路线",
+    "今天", "明天", "昨天", "几点", "日期", "时间", "现在",
+    "星期", "周几", "几号", "几月",
+    "距离", "多远", "多近", "多少米", "公里", "步行",
 ]
 
 
@@ -74,7 +77,8 @@ async def classify_intent(user_input: str) -> str:
         "  · 实时信息（航班、地铁运营时间）\n"
         "  · 酒店知识库里没有的外部知识\n\n"
         "⚠️ 重要：询问政策/规则/流程 → knowledge，不是 action！\n"
-        "⚠️ 重要：天气/交通/餐厅/景点 → web_search，不是 chat！\n\n"
+        "⚠️ 重要：天气/交通/餐厅/景点 → web_search，不是 chat！\n"
+        "⚠️ 重要：询问今天/明天的日期、星期几、几月几号、当前时间 → web_search，不是 chat！\n\n"
         "示例：\n"
         "- '你好' → chat\n"
         "- '谢谢' → chat\n"
@@ -86,7 +90,10 @@ async def classify_intent(user_input: str) -> str:
         "- '今天北京天气怎么样' → web_search\n"
         "- '附近有什么好吃的餐厅' → web_search\n"
         "- '从酒店到机场怎么走' → web_search\n"
-        "- '明天有CBA比赛吗' → web_search\n\n"
+        "- '明天有CBA比赛吗' → web_search\n"
+        "- '今天是周几' → web_search\n"
+        "- '现在几点了' → web_search\n"
+        "- '今天几号' → web_search\n\n"
         f"住客输入：{user_input}\n\n"
         "只输出一个词（chat / knowledge / action / web_search），不要任何解释。"
     )

@@ -87,57 +87,96 @@ async def register_face(
 @limiter.limit("10/minute")
 async def search_face_login(request: Request, file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
     image_bytes = await file.read()
-    logger.debug("received %d bytes", len(image_bytes))
+    logger.info("[FaceSearch] 收到图片，大小: %d bytes", len(image_bytes))
+
     # 1. 活体检测
-    living_result = detect_living_face(image_bytes)
-    logger.debug("living result: %s", living_result)
-    living_data = living_result.get("Data") or living_result.get("data", {})
-    elements = living_data.get("Elements", []) if living_data else []
-    living_pass = False
-    if elements and elements[0].get("Results", []):
-        r = elements[0]["Results"][0]
-        living_pass = r.get("Suggestion") == "pass" and (r.get("Rate", 0) or 0) >= 50
-        logger.info("liveness: suggestion=%s, rate=%s, pass=%s", r.get('Suggestion'), r.get('Rate'), living_pass)
-    else:
-        logger.warning("liveness: no elements/results, elements=%s", elements)
-    if not living_pass:
-        raise HTTPException(status_code=400, detail="活体检测未通过")
+    try:
+        living_result = detect_living_face(image_bytes)
+        living_data = living_result.get("Data") or living_result.get("data", {})
+        elements = living_data.get("Elements", []) if living_data else []
+        living_pass = False
+        if elements and elements[0].get("Results", []):
+            r = elements[0]["Results"][0]
+            living_pass = r.get("Suggestion") == "pass" and (r.get("Rate", 0) or 0) >= 50
+            logger.info("[FaceSearch] 活体检测: suggestion=%s, rate=%s, pass=%s", r.get('Suggestion'), r.get('Rate'), living_pass)
+        else:
+            logger.warning("[FaceSearch] 活体检测无结果, elements=%s", elements)
+            living_pass = False  # 明确设置为 False
+        if not living_pass:
+            logger.warning("[FaceSearch] 活体检测未通过，拒绝请求")
+            raise HTTPException(status_code=400, detail="活体检测未通过")
+    except HTTPException:
+        raise  # 重新抛出 HTTP 异常
+    except Exception as e:
+        logger.error("[FaceSearch] 活体检测异常: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail=f"活体检测服务异常: {str(e)}")
+
     # 2. 人脸搜索
-    search_result = search_face(settings.ALIYUN_FACE_DB_NAME, image_bytes)
-    logger.debug("search result: %s", search_result)
-    search_data = search_result.get("Data") or search_result.get("data", {})
-    match_list = search_data.get("MatchList", []) if search_data else []
-    logger.debug("match_list count=%d", len(match_list))
-    if not match_list:
-        raise HTTPException(status_code=404, detail="未找到匹配的人脸，请先到前台登记入住")
-    # 3. 遍历所有匹配结果，找到第一个 is_active 的住客
-    for match in match_list:
-        face_items = match.get("FaceItems", []) if match else []
-        for face in face_items:
-            confidence = face.get("Confidence", 0)
-            if confidence < 70:
-                continue
-            entity_id = face.get("EntityId")
-            if not entity_id:
-                continue
-            guest_uuid = uuid.UUID(entity_id)
-            result_db = await db.execute(select(Guest).where(Guest.id == guest_uuid))
-            guest = result_db.scalar_one_or_none()
-            if not guest:
-                continue
-            if not guest.is_active:
-                logger.info("guest %s is_active=False, skipping", guest_uuid)
-                continue
-            # 找到活跃住客，签发 JWT
-            guest_uuid_str = str(guest_uuid)
-            token_data = {"sub": guest_uuid_str, "role": "guest", "user_type": "guest"}
-            access_token = create_access_token(token_data)
-            refresh_token = create_refresh_token(token_data)
-            return {
-                "success": True,
-                "guest_id": guest_uuid_str,
-                "confidence": confidence,
-                "access_token": access_token,
-                "refresh_token": refresh_token,
-            }
-    raise HTTPException(status_code=404, detail="未找到有效住客，请先到前台办理入住")
+    try:
+        search_result = search_face(settings.ALIYUN_FACE_DB_NAME, image_bytes)
+        search_data = search_result.get("Data") or search_result.get("data", {})
+        match_list = search_data.get("MatchList", []) if search_data else []
+        logger.info("[FaceSearch] 人脸搜索返回 %d 个匹配结果", len(match_list))
+
+        if not match_list:
+            logger.warning("[FaceSearch] 未找到匹配人脸")
+            raise HTTPException(status_code=404, detail="未找到匹配的人脸，请先到前台登记入住")
+
+        # 3. 遍历所有匹配结果，找到第一个 is_active 的住客
+        all_candidates = []  # 收集所有候选以便日志
+        for match in match_list:
+            face_items = match.get("FaceItems", []) if match else []
+            for face in face_items:
+                confidence = face.get("Confidence", 0)
+                entity_id = face.get("EntityId", "unknown")
+                all_candidates.append({"entity_id": entity_id, "confidence": confidence})
+
+                if confidence < 70:
+                    logger.debug("[FaceSearch] 跳过低置信度: entity=%s, confidence=%.1f%%", entity_id, confidence)
+                    continue
+                if not entity_id or entity_id == "unknown":
+                    logger.warning("[FaceSearch] entity_id 为空")
+                    continue
+
+                try:
+                    guest_uuid = uuid.UUID(entity_id)
+                except ValueError:
+                    logger.warning("[FaceSearch] 无效的 entity_id: %s", entity_id)
+                    continue
+
+                result_db = await db.execute(select(Guest).where(Guest.id == guest_uuid))
+                guest = result_db.scalar_one_or_none()
+                if not guest:
+                    logger.warning("[FaceSearch] 数据库中未找到住客: entity_id=%s (UUID=%s)", entity_id, guest_uuid)
+                    # 查询数据库中所有住客的 ID，帮助排查
+                    all_guests_result = await db.execute(select(Guest.id))
+                    all_guest_ids = [str(gid) for gid in all_guests_result.scalars().all()]
+                    logger.info("[FaceSearch] 数据库中现有住客 ID 列表: %s", all_guest_ids)
+                    continue
+                if not guest.is_active:
+                    logger.info("[FaceSearch] 住客已退房: entity=%s, guest_id=%s", entity_id, guest_uuid)
+                    continue
+
+                # 找到活跃住客，签发 JWT
+                guest_uuid_str = str(guest_uuid)
+                token_data = {"sub": guest_uuid_str, "role": "guest", "user_type": "guest"}
+                access_token = create_access_token(token_data)
+                refresh_token = create_refresh_token(token_data)
+                logger.info("[FaceSearch] 登录成功! guest_id=%s, name=%s, confidence=%.1f%%", guest_uuid, guest.name, confidence)
+                return {
+                    "success": True,
+                    "guest_id": guest_uuid_str,
+                    "confidence": confidence,
+                    "access_token": access_token,
+                    "refresh_token": refresh_token,
+                }
+
+        # 如果走到这里，说明没有符合条件的住客
+        logger.warning("[FaceSearch] 所有匹配结果均不符合条件: %s", all_candidates)
+        raise HTTPException(status_code=404, detail="未找到有效住客，请先到前台办理入住")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("[FaceSearch] 人脸搜索异常: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail=f"人脸搜索服务异常: {str(e)}")
