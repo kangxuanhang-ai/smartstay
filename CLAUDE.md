@@ -56,6 +56,8 @@ VITE_API_BASE_URL=http://localhost:8765
 VITE_WS_BASE_URL=ws://localhost:8765
 ```
 
+> 模板文件：`frontend/.env.example`
+
 ## 验证命令
 
 完成任务前必须全部运行（按顺序检查：编译 → 类型检查 → 测试）：
@@ -75,7 +77,7 @@ cd frontend && npm run build                                  # 生产构建 (ts
 cd smartstay-flutter && flutter analyze                      # 静态分析
 ```
 
-环境一键检查：`./init.sh`（验证工具链、.env、数据库连通性、三端编译）。
+环境一键检查：`./init.sh`（验证工具链、.env、数据库连通性、三端编译）。脚本会检查 Python/Node/Flutter 工具链、backend/.env 存在性、PostgreSQL 连通性、TypeScript 类型检查、Flutter 静态分析。
 
 ### Docker 生产部署
 
@@ -132,6 +134,11 @@ smartstay-flutter/lib/
   core/         ApiClient (Dio + JWT 刷新)、WsService、SSE 解析器、config、VoiceService
 ```
 
+**Flutter 路由结构** (`app.dart`)：
+- `/login`, `/face-login`, `/change-password` — 认证相关
+- ShellRoute（底部导航栏）：`/home`, `/room-control`, `/ai-chat`, `/work-orders`, `/my`
+- 子页面：`/map`, `/facility`（在 /home 下）, `/bill-detail/:orderId`, `/ai-chat/preferences`
+
 ### 枚举值（代码中为字符串，非 Python Enum）
 
 - **Room.status**: `vacant`, `occupied`, `dirty`, `maintenance`
@@ -170,7 +177,7 @@ RAGDocument, RAGEmbedding, AISecurityLog, ChatSession, ChatMessage
 GuestPreference  # guest_preferences 表
 ```
 
-> **注意**：`GuestPreference` 模型在 `preference.py` 中定义，但未在 `__init__.py` 中导入。如需使用，需显式导入：`from app.models.preference import GuestPreference`。
+> **注意**：`GuestPreference` 模型在 `preference.py` 中定义，但未在 `__init__.py` 中导入。如需使用，需显式导入：`from app.models.preference import GuestPreference`。该表通过 `init_db()` 中的 raw SQL 创建（`CREATE TABLE IF NOT EXISTS guest_preferences`），不通过 SQLModel 自动管理。
 
 ### 测试模式
 
@@ -268,6 +275,7 @@ async def test_something(client, biz_token):
 - **实施计划**：`docs/superpowers/plans/`（每个功能一个）
 - **Codex 代理配置**：`AGENTS.md`（旧版本，内容可能落后于本文件）
 - **项目深度分析**：`PROJECT_SUMMARY.md`（架构分析报告）
+- **UI 设计文件**：`SmartStay.pen`（Pencil 设计文件）
 
 ## 工作流规则
 
@@ -276,6 +284,8 @@ async def test_something(client, biz_token):
 3. 声称完成前先跑验证。
 4. 在 `progress.md` 中记录证据。
 5. 会话结束时更新 `session-handoff.md`。
+
+**功能跟踪**：`feature_list.json` 包含所有功能的 ID、名称、状态（planned/in-progress/done）、依赖、设计文档路径、证据。功能 ID 格式为 `F001`、`F002` 等。
 
 **完成标准**：代码编译零错误、全部测试通过、`feature_list.json` 状态为 `done` 且填写了证据、`progress.md` 已更新、`session-handoff.md` 已更新。
 

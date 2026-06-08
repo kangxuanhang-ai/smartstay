@@ -1,6 +1,6 @@
 ﻿from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
-from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
+from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage, AIMessage
 from langchain_deepseek import ChatDeepSeek
 import logging
 import re
@@ -49,6 +49,34 @@ async def chat_node(state: AgentState):
         room_id = state.get("room_id", "")
         current_time = cst_now().strftime("%Y-%m-%d %H:%M")
 
+        # 通过 room_id 查询实际房间号
+        room_number = "未知"
+        if room_id:
+            try:
+                from app.models.room import Room
+                from app.core.database import async_session
+                from sqlmodel import select as sql_select
+                import uuid as _uuid
+                async with async_session() as db:
+                    room_res = await db.execute(sql_select(Room.room_number).where(Room.id == _uuid.UUID(room_id)))
+                    room_number = room_res.scalar_one_or_none() or "未知"
+            except Exception:
+                room_number = "未知"
+
+        # 获取酒店地址
+        hotel_address = "北京市朝阳区建国路88号SOHO现代城"
+        try:
+            from app.models.hotel import HotelInfo
+            from app.core.database import async_session as _db_session
+            from sqlmodel import select as _sel
+            async with _db_session() as _db:
+                _addr_res = await _db.execute(_sel(HotelInfo.address).limit(1))
+                _addr = _addr_res.scalar_one_or_none()
+                if _addr:
+                    hotel_address = _addr
+        except Exception:
+            pass
+
         # 偏好信息
         preferences = state.get("preferences") or {}
         pref_text = ""
@@ -79,7 +107,8 @@ async def chat_node(state: AgentState):
             f"## 当前上下文\n"
             f"- 时间：{current_time}\n"
             f"- 住客：{guest_name}\n"
-            f"- 房间：{room_id}\n"
+            f"- 房间号：{room_number}\n"
+            f"- 酒店地址：{hotel_address}\n"
             f"- 对话轮次：住客已发送 {user_count} 条消息"
             f"{pref_text}{summary_text}\n\n"
             f"## 回复规范\n"
@@ -117,11 +146,25 @@ async def knowledge_node(state: AgentState):
         guest_name = await _get_guest_name(state.get("user_id", ""))
         room_id = state.get("room_id", "")
 
+        # 通过 room_id 查询实际房间号
+        room_number = "未知"
+        if room_id:
+            try:
+                from app.models.room import Room
+                from app.core.database import async_session
+                from sqlmodel import select as sql_select
+                import uuid as _uuid
+                async with async_session() as db:
+                    room_res = await db.execute(sql_select(Room.room_number).where(Room.id == _uuid.UUID(room_id)))
+                    room_number = room_res.scalar_one_or_none() or "未知"
+            except Exception:
+                room_number = "未知"
+
         recent = state["messages"][-5:]
         recent_text = "\n".join(f"{m.type}: {m.content}" for m in recent if hasattr(m, "content") and m.content)
         system_prompt = (
             f"你是「小智」，智宿云酒店的 AI 虚拟管家。\n"
-            f"当前住客：{guest_name}，房间：{room_id}\n\n"
+            f"当前住客：{guest_name}，房间号：{room_number}\n\n"
             f"请严格依据以下酒店知识库信息回答住客问题。\n"
             f"- 如果知识库没有相关信息，诚实告知住客并建议联系前台（电话或 App 内消息）\n"
             f"- 绝对不要编造知识库中没有的信息\n"
@@ -253,6 +296,19 @@ async def action_node(state: AgentState):
     if not clean_text:
         clean_text = user_text
     logger.info(f"action_node entered, user_text={clean_text[:50]}")
+
+    # 价格相关请求直接拦截（不依赖 LLM tool_call）
+    _price_keywords = ["房价", "价格", "改价", "调价", "打折", "减免", "免单"]
+    if any(kw in clean_text for kw in _price_keywords):
+        from app.ai.guard import execute_security_guard, _log_violation
+        guard_result = await execute_security_guard(
+            "modify_room_price_tool", state["role"], {"user_text": clean_text},
+            clean_text, user_id=state.get("user_id", ""),
+        )
+        if not guard_result["ok"]:
+            state["messages"].append(AIMessage(content=guard_result["error"]))
+            state["business_cards"] = [{"type": "error", "title": "⚠️ 操作被拦截", "detail": guard_result["error"]}]
+            return state
 
     # 偏好信息
     preferences = state.get("preferences") or {}
@@ -409,6 +465,7 @@ async def complaint_response(state: AgentState):
 
     try:
         # 1. 生成安抚回复
+        _default_reply = "非常抱歉给您带来不好的体验，已通知前台立即处理，请您稍等。"
         try:
             from app.ai.rag import _get_rewriter
             empathetic_llm = _get_rewriter()
@@ -421,9 +478,12 @@ async def complaint_response(state: AgentState):
                 f"住客原话：{user_text}"
             )
             resp = await empathetic_llm.ainvoke(prompt)
-            reply_text = resp.content.strip()
+            reply_text = resp.content.strip() if resp.content else ""
         except Exception:
-            reply_text = f"非常抱歉给您带来不好的体验，已通知前台立即处理，请您稍等。"
+            reply_text = ""
+
+        if not reply_text:
+            reply_text = _default_reply
 
         from langchain_core.messages import AIMessage
         state["messages"].append(AIMessage(content=reply_text))

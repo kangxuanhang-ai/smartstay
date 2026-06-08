@@ -199,7 +199,7 @@ async def ai_chat(
                 name = event.get("name", "")
 
                 # 节点开始执行 → 后续的 on_chat_model_stream 都来自实际节点
-                if kind == "on_chain_start" and name in ("chat_response", "knowledge_response", "action_response", "web_search_response"):
+                if kind == "on_chain_start" and name in ("chat_response", "knowledge_response", "action_response", "web_search_response", "complaint_response"):
                     node_executed = True
 
                 if kind == "on_chat_model_stream" and node_executed:
@@ -225,8 +225,8 @@ async def ai_chat(
                                 yield f"data: {json.dumps({'type': 'text', 'content': content}, ensure_ascii=False)}\n\n"
                                 break
 
-                # 兜底：从 knowledge_response / chat_response / web_search_response 节点 output 中提取 AI 回复
-                elif kind == "on_chain_end" and name in ("knowledge_response", "chat_response", "web_search_response"):
+                # 兜底：从 knowledge_response / chat_response / web_search_response / complaint_response 节点 output 中提取 AI 回复
+                elif kind == "on_chain_end" and name in ("knowledge_response", "chat_response", "web_search_response", "complaint_response"):
                     if not final_text:  # 只在流式未发送时兜底
                         output = event["data"].get("output", {})
                         messages = output.get("messages", [])
